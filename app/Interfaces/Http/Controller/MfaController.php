@@ -7,9 +7,11 @@ namespace App\Interfaces\Http\Controller;
 use App\Application\Mfa\Command\ConfirmTotpCommand;
 use App\Application\Mfa\Command\DisableMfaCommand;
 use App\Application\Mfa\Command\EnrollTotpCommand;
+use App\Application\Mfa\Command\RegenerateRecoveryCodesCommand;
 use App\Application\Mfa\ConfirmTotp;
 use App\Application\Mfa\DisableMfa;
 use App\Application\Mfa\EnrollTotp;
+use App\Application\Mfa\RegenerateRecoveryCodes;
 use App\Interfaces\Http\Request\ConfirmTotpRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -43,7 +45,7 @@ final class MfaController
             requestId: (string) $request->attributes->get('request_id'),
         ));
 
-        return response()->json(['data' => ['enabled' => $result->enabled]]);
+        return response()->json(['data' => ['enabled' => $result->enabled, 'recovery_codes' => $result->recoveryCodes]]);
     }
 
     public function disableTotp(string $id, Request $request, DisableMfa $handler): JsonResponse
@@ -55,6 +57,17 @@ final class MfaController
         ));
 
         return response()->json(['data' => ['disabled' => $result->disabled]]);
+    }
+
+    public function regenerateRecoveryCodes(string $id, Request $request, RegenerateRecoveryCodes $handler): JsonResponse
+    {
+        $result = $handler->handle(new RegenerateRecoveryCodesCommand(
+            userId: $id,
+            actorId: $this->actorId($request),
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        return response()->json(['data' => ['recovery_codes' => $result->codes]]);
     }
 
     private function actorId(Request $request): string

@@ -11,6 +11,7 @@ use App\Application\Auth\LoginUser;
 use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
 use App\Application\EmailVerification\RequestEmailVerification;
+use App\Application\Mfa\GenerateRecoveryCodes;
 use App\Application\PasswordReset\RequestPasswordReset;
 use App\Application\Port\ApiKeyGenerator;
 use App\Application\Port\AuditWriter;
@@ -29,6 +30,7 @@ use App\Application\User\AuthenticateUser;
 use App\Domain\Identity\ApiKey\Repository\ApiKeyRepository;
 use App\Domain\Identity\EmailVerification\Repository\EmailVerificationTokenRepository;
 use App\Domain\Identity\Mfa\Repository\MfaChallengeRepository;
+use App\Domain\Identity\Mfa\Repository\RecoveryCodeRepository;
 use App\Domain\Identity\Mfa\Repository\TotpCredentialRepository;
 use App\Domain\Identity\PasswordReset\Repository\PasswordResetRepository;
 use App\Domain\Identity\Permission\Repository\PermissionRepository;
@@ -48,6 +50,7 @@ use App\Infrastructure\Persistence\Repository\EloquentEmailVerificationTokenRepo
 use App\Infrastructure\Persistence\Repository\EloquentMfaChallengeRepository;
 use App\Infrastructure\Persistence\Repository\EloquentPasswordResetRepository;
 use App\Infrastructure\Persistence\Repository\EloquentPermissionRepository;
+use App\Infrastructure\Persistence\Repository\EloquentRecoveryCodeRepository;
 use App\Infrastructure\Persistence\Repository\EloquentRefreshTokenRepository;
 use App\Infrastructure\Persistence\Repository\EloquentRoleRepository;
 use App\Infrastructure\Persistence\Repository\EloquentServiceAccountRepository;
@@ -90,6 +93,7 @@ final class DomainServiceProvider extends ServiceProvider
         $this->app->bind(PasswordResetRepository::class, EloquentPasswordResetRepository::class);
         $this->app->bind(TotpCredentialRepository::class, EloquentTotpCredentialRepository::class);
         $this->app->bind(MfaChallengeRepository::class, EloquentMfaChallengeRepository::class);
+        $this->app->bind(RecoveryCodeRepository::class, EloquentRecoveryCodeRepository::class);
         $this->app->bind(SecretCipher::class, LaravelSecretCipher::class);
         $this->app->bind(RefreshTokenRepository::class, EloquentRefreshTokenRepository::class);
         $this->app->bind(TokenGenerator::class, RandomRefreshTokenGenerator::class);
@@ -166,6 +170,13 @@ final class DomainServiceProvider extends ServiceProvider
                 $app->make(TransactionManager::class),
                 $mfa['challenge_ttl'],
             );
+        });
+
+        $this->app->bind(GenerateRecoveryCodes::class, static function (Application $app): GenerateRecoveryCodes {
+            /** @var array{recovery_code_count:int} $mfa */
+            $mfa = config('unero.mfa');
+
+            return new GenerateRecoveryCodes($app->make(RecoveryCodeRepository::class), $mfa['recovery_code_count']);
         });
 
         $this->app->bind(RefreshTokens::class, static function (Application $app): RefreshTokens {

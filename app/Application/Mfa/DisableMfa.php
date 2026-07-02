@@ -9,19 +9,21 @@ use App\Application\Mfa\Result\DisableMfaResult;
 use App\Application\Port\AuditWriter;
 use App\Application\Port\Clock;
 use App\Application\Port\TransactionManager;
+use App\Domain\Identity\Mfa\Repository\RecoveryCodeRepository;
 use App\Domain\Identity\Mfa\Repository\TotpCredentialRepository;
 use App\Domain\Identity\Mfa\TotpCredential;
 use App\Domain\Identity\User\ValueObject\UserId;
 
 /**
  * Turn off a user's TOTP second factor. Idempotent: with no active credential it's a no-op reported
- * as disabled=false. Otherwise the credential is disabled (emitting MFADisabled) and later logins
- * stop challenging.
+ * as disabled=false. Otherwise the credential is disabled (emitting MFADisabled), recovery codes are
+ * cleared, and later logins stop challenging.
  */
 final readonly class DisableMfa
 {
     public function __construct(
         private TotpCredentialRepository $credentials,
+        private RecoveryCodeRepository $recoveryCodes,
         private AuditWriter $audit,
         private Clock $clock,
         private TransactionManager $tx,
@@ -29,14 +31,16 @@ final readonly class DisableMfa
 
     public function handle(DisableMfaCommand $c): DisableMfaResult
     {
-        $active = $this->credentials->findActiveForUser(new UserId($c->userId));
+        $userId = new UserId($c->userId);
+        $active = $this->credentials->findActiveForUser($userId);
         if (! $active instanceof TotpCredential) {
             return new DisableMfaResult(false);
         }
 
-        return $this->tx->transactional(function () use ($c, $active): DisableMfaResult {
+        return $this->tx->transactional(function () use ($c, $userId, $active): DisableMfaResult {
             $active->disable($this->clock->now());
             $this->credentials->save($active);
+            $this->recoveryCodes->deleteForUser($userId);
 
             $this->audit->record('mfa.disabled', $c->actorId, 'user:'.$c->userId, [], ['method' => 'totp'], $c->requestId, null);
 

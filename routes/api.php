@@ -88,6 +88,7 @@ Route::prefix('identity')->group(function (): void {
             Route::post('users/{id}/mfa/totp/enroll', [MfaController::class, 'enrollTotp'])->whereUlid('id');
             Route::post('users/{id}/mfa/totp/confirm', [MfaController::class, 'confirmTotp'])->whereUlid('id');
             Route::post('users/{id}/mfa/totp/disable', [MfaController::class, 'disableTotp'])->whereUlid('id');
+            Route::post('users/{id}/mfa/recovery-codes', [MfaController::class, 'regenerateRecoveryCodes'])->whereUlid('id');
         });
     });
 });

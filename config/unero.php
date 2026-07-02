@@ -64,6 +64,8 @@ return [
         'window' => (int) env('IDENTITY_MFA_WINDOW', 1), // +/- steps of clock-skew tolerance
         // Lifetime (seconds) of the post-password MFA challenge before the user must log in again.
         'challenge_ttl' => (int) env('IDENTITY_MFA_CHALLENGE_TTL', 300), // 5 minutes
+        // Number of one-time recovery codes issued per batch.
+        'recovery_code_count' => (int) env('IDENTITY_MFA_RECOVERY_CODE_COUNT', 10),
     ],
 
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).

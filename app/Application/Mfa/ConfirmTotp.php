@@ -27,6 +27,7 @@ final readonly class ConfirmTotp
         private TotpCredentialRepository $credentials,
         private TotpProvider $totp,
         private SecretCipher $cipher,
+        private GenerateRecoveryCodes $recoveryCodes,
         private AuditWriter $audit,
         private Clock $clock,
         private TransactionManager $tx,
@@ -50,9 +51,11 @@ final readonly class ConfirmTotp
             $pending->confirm($now);
             $this->credentials->save($pending);
 
+            $codes = $this->recoveryCodes->forUser($userId, $now);
+
             $this->audit->record('mfa.totp_enabled', $c->actorId, 'user:'.$userId->value, [], ['method' => 'totp'], $c->requestId, null);
 
-            return new ConfirmTotpResult(true);
+            return new ConfirmTotpResult(true, $codes);
         });
     }
 }

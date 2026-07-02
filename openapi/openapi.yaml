@@ -836,12 +836,47 @@ paths:
                 properties:
                   data:
                     type: object
-                    required: [enabled]
+                    required: [enabled, recovery_codes]
                     properties:
                       enabled: { type: boolean }
+                      recovery_codes:
+                        type: array
+                        items: { type: string }
+                        description: one-time recovery codes, shown once
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
+
+  /identity/users/{id}/mfa/recovery-codes:
+    post:
+      summary: Regenerate MFA recovery codes
+      description: Issues a fresh batch (shown once), invalidating the previous one. Requires active MFA (MFA_005).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: new recovery codes (shown once)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [recovery_codes]
+                    properties:
+                      recovery_codes:
+                        type: array
+                        items: { type: string }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
 
   /identity/users/{id}/mfa/totp/disable:
     post:

@@ -28,7 +28,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | POST | `/identity/internal/password-reset/deliveries/{ref}/materialize` | actor | — | Exchange a delivery_ref → `200 { data: email, token, expires_at }` (token minted, shown once) |
 | POST | `/identity/users/{id}/email/verification-request` | actor | ✅ | Issue a verification token → `200 { data: token, expires_at }` (token shown once) |
 | POST | `/identity/users/{id}/mfa/totp/enroll` | actor | ✅ | Begin TOTP enrollment → `200 { data: secret, provisioning_uri }` (secret shown once) |
-| POST | `/identity/users/{id}/mfa/totp/confirm` | actor | ✅ | Confirm with a code → `200 { data: enabled }` (activates, emits MFAEnabled) |
+| POST | `/identity/users/{id}/mfa/totp/confirm` | actor | ✅ | Confirm with a code → `200 { data: enabled, recovery_codes }` (activates, emits MFAEnabled) |
+| POST | `/identity/users/{id}/mfa/recovery-codes` | actor | ✅ | Regenerate recovery codes → `200 { data: recovery_codes }` (invalidates the previous batch) |
 | POST | `/identity/users/{id}/mfa/totp/disable` | actor | ✅ | Turn off MFA → `200 { data: disabled }` (emits MFADisabled; idempotent) |
 | POST | `/identity/auth/refresh` | public | — | Rotate the token pair → `200 { data: TokenPair }` (reuse → AUTH_012, family revoked) |
 | POST | `/identity/auth/logout` | public | — | Revoke the session family → `200 { data: { user_id } }` (idempotent) |
@@ -96,6 +97,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `MFA_002` | 422 | TOTP verification code is incorrect |
 | `MFA_003` | 404 | No pending MFA enrollment to confirm |
 | `MFA_004` | 401 | MFA challenge is invalid, used, or expired |
+| `MFA_005` | 404 | MFA is not enabled for this user |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -191,6 +193,12 @@ lockout is deferred to the 2I hardening pass.)
 **Disabling.** `POST /users/{id}/mfa/totp/disable` turns off the active credential and emits
 `MFADisabled`; subsequent logins stop challenging. It's idempotent — with no active credential it
 returns `disabled: false` and does nothing.
+
+**Recovery codes.** Confirming enrollment also returns a one-time batch (default 10) in
+`data.recovery_codes`, shown once; only their hashes are stored. `POST /users/{id}/mfa/recovery-codes`
+regenerates the batch, invalidating the previous one (requires active MFA, else `404 MFA_005`).
+Disabling MFA clears them. A recovery code can stand in for a TOTP code at `POST /login/mfa` (landing
+in the consumption slice).
 
 ## Service tokens (client credentials)
 Platform services authenticate to each other with their own rotatable credential rather than a
