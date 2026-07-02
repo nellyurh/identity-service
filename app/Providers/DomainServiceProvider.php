@@ -58,7 +58,6 @@ final class DomainServiceProvider extends ServiceProvider
 
         $this->app->singleton(TokenIssuer::class, static function (Application $app): OpensslRs256TokenIssuer {
             $keys = $app->make(SigningKeyProvider::class);
-            assert($keys instanceof SigningKeyProvider);
             /** @var array{issuer:string,audience:string,access_ttl:int} $jwt */
             $jwt = config('unero.jwt');
 
@@ -67,7 +66,6 @@ final class DomainServiceProvider extends ServiceProvider
 
         $this->app->singleton(TokenVerifier::class, static function (Application $app): OpensslRs256TokenVerifier {
             $keys = $app->make(SigningKeyProvider::class);
-            assert($keys instanceof SigningKeyProvider);
             /** @var array{issuer:string,audience:string} $jwt */
             $jwt = config('unero.jwt');
 
