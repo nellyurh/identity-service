@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: identity-service API
-  version: 0.1.0
+  version: 0.2.0
   description: >
     Unero Identity Service: authentication, authorization (RBAC), service accounts, API
     keys, sessions, and tokens. Public authentication endpoints and an internal admin
@@ -21,7 +21,177 @@ paths:
       responses:
         "200": { description: ready }
         "503": { description: not ready }
+
+  /identity/register:
+    post:
+      summary: Register a user
+      description: Public self-registration. Idempotent — requires an Idempotency-Key.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [user_id]
+                    properties:
+                      user_id: { $ref: "#/components/schemas/Ulid" }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/login:
+    post:
+      summary: Authenticate a user
+      description: >
+        Verifies credentials and returns the principal. Access/refresh tokens are added
+        once the auth (JWT) milestone lands. Invalid credentials and unknown accounts both
+        return AUTH_002 (no enumeration).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: authenticated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/Principal" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/change-password:
+    post:
+      summary: Change own password (self-service)
+      description: Actor (from X-Actor-Id) changes their own password. Idempotent.
+      parameters:
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ChangePasswordRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/UserProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/users/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/Ulid" }
+      - $ref: "#/components/parameters/ActorId"
+      - $ref: "#/components/parameters/ActorType"
+    get:
+      summary: Get a user by id
+      responses:
+        "200": { $ref: "#/components/responses/UserProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      summary: Soft-delete a user
+      description: Idempotent. The record is retained for audit; the user can never authenticate again.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReasonBody" }
+      responses:
+        "200": { $ref: "#/components/responses/UserProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /identity/users:
+    get:
+      summary: Look up a user by email or username
+      parameters:
+        - { name: email, in: query, required: false, schema: { type: string, format: email } }
+        - { name: username, in: query, required: false, schema: { type: string } }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+      responses:
+        "200": { $ref: "#/components/responses/UserProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/users/{id}/disable:
+    post:
+      summary: Disable a user
+      description: Idempotent. A disabled user cannot authenticate until re-enabled.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Ulid" } }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReasonBody" }
+      responses:
+        "200": { $ref: "#/components/responses/UserProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /identity/users/{id}/enable:
+    post:
+      summary: Re-enable a disabled user
+      description: Idempotent. A deleted user cannot be re-enabled.
+      parameters:
+        - { name: id, in: path, required: true, schema: { $ref: "#/components/schemas/Ulid" } }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReasonBody" }
+      responses:
+        "200": { $ref: "#/components/responses/UserProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
 components:
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string }
+    ActorId:
+      name: X-Actor-Id
+      in: header
+      required: true
+      schema: { type: string }
+    ActorType:
+      name: X-Actor-Type
+      in: header
+      required: false
+      schema: { type: string, enum: [user, service] }
   responses:
     Error:
       description: Standard error envelope (unero-shared-schemas error-envelope)
@@ -40,3 +210,57 @@ components:
                   detail: { type: object }
               request_id: { type: string }
               docs_url: { type: string }
+    UserProfile:
+      description: A user profile projection
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: "#/components/schemas/UserProfile" }
+  schemas:
+    Ulid:
+      type: string
+      pattern: "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    RegisterRequest:
+      type: object
+      required: [email, username, password]
+      properties:
+        email: { type: string, format: email, maxLength: 255 }
+        username: { type: string, minLength: 3, maxLength: 32 }
+        password: { type: string, minLength: 8, maxLength: 4096 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, maxLength: 4096 }
+    ChangePasswordRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string, maxLength: 4096 }
+        new_password: { type: string, minLength: 8, maxLength: 4096 }
+    ReasonBody:
+      type: object
+      properties:
+        reason: { type: string, maxLength: 500, nullable: true }
+    Principal:
+      type: object
+      required: [user_id, status, email_verified]
+      properties:
+        user_id: { $ref: "#/components/schemas/Ulid" }
+        status: { type: string, enum: [active, disabled, deleted] }
+        email_verified: { type: boolean }
+    UserProfile:
+      type: object
+      required: [user_id, email, username, status, email_verified, created_at, updated_at]
+      properties:
+        user_id: { $ref: "#/components/schemas/Ulid" }
+        email: { type: string, format: email }
+        username: { type: string }
+        status: { type: string, enum: [active, disabled, deleted] }
+        email_verified: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }

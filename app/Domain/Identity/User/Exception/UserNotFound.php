@@ -24,6 +24,14 @@ final class UserNotFound extends DomainException
         return $e;
     }
 
+    public static function withUsername(string $username): self
+    {
+        $e = new self('No user with the given username.');
+        $e->detail = ['username' => $username];
+
+        return $e;
+    }
+
     public function errorCode(): string
     {
         return 'USER_001';
