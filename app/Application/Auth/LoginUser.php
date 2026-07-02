@@ -8,22 +8,34 @@ use App\Application\Auth\Command\LoginCommand;
 use App\Application\Auth\Result\LoginResult;
 use App\Application\Port\AuditWriter;
 use App\Application\Port\Clock;
+use App\Application\Port\TokenGenerator;
 use App\Application\Port\TokenIssuer;
+use App\Application\Port\TransactionManager;
 use App\Application\User\AuthenticateUser;
 use App\Application\User\Command\AuthenticateUserCommand;
+use App\Domain\Identity\Token\RefreshToken;
+use App\Domain\Identity\Token\Repository\RefreshTokenRepository;
+use App\Domain\Identity\User\ValueObject\UserId;
+use DateInterval;
 
 /**
  * Login use case: verify credentials (delegated to AuthenticateUser, which owns lockout/audit
- * and no-enumeration), then mint a short-lived RS256 access token. Refresh tokens and session
- * records are added in the next slice; this returns an access token only.
+ * and no-enumeration), then mint a short-lived RS256 access token AND a rotating refresh token
+ * in a new family. The opaque refresh secret is returned to the client exactly once; only its
+ * SHA-256 hash is persisted. Access issuance + refresh persistence + audit happen atomically so
+ * the TokenIssued outbox row can never diverge from the stored token.
  */
 final readonly class LoginUser
 {
     public function __construct(
         private AuthenticateUser $authenticate,
         private TokenIssuer $tokens,
+        private RefreshTokenRepository $refreshTokens,
+        private TokenGenerator $tokenGenerator,
         private AuditWriter $audit,
         private Clock $clock,
+        private TransactionManager $tx,
+        private int $refreshTtlSeconds,
     ) {}
 
     public function handle(LoginCommand $c): LoginResult
@@ -32,29 +44,49 @@ final readonly class LoginUser
             new AuthenticateUserCommand($c->email, $c->password, $c->requestId),
         );
 
-        $issued = $this->tokens->issueAccessToken(
-            $principal->userId,
-            ['token_use' => 'access'],
-            $this->clock->now(),
-        );
+        $now = $this->clock->now();
 
-        $this->audit->record(
-            'token.issued',
-            $principal->userId,
-            'user:'.$principal->userId,
-            [],
-            ['jti' => $issued->jti, 'token_use' => 'access'],
-            $c->requestId,
-            null,
-        );
+        return $this->tx->transactional(function () use ($c, $principal, $now): LoginResult {
+            $issued = $this->tokens->issueAccessToken(
+                $principal->userId,
+                ['token_use' => 'access'],
+                $now,
+            );
 
-        return new LoginResult(
-            userId: $principal->userId,
-            status: $principal->status,
-            emailVerified: $principal->emailVerified,
-            accessToken: $issued->token,
-            tokenType: $issued->tokenType,
-            expiresIn: $issued->expiresIn,
-        );
+            $secret = $this->tokenGenerator->generate();
+            $family = $this->refreshTokens->nextFamilyIdentity();
+
+            $token = RefreshToken::issue(
+                $this->refreshTokens->nextIdentity(),
+                UserId::fromString($principal->userId),
+                $family,
+                hash('sha256', $secret),
+                $issued->jti,
+                $now->add(new DateInterval('PT'.$this->refreshTtlSeconds.'S')),
+                $now,
+            );
+            $this->refreshTokens->save($token);
+
+            $this->audit->record(
+                'token.issued',
+                $principal->userId,
+                'user:'.$principal->userId,
+                [],
+                ['jti' => $issued->jti, 'family_id' => $family->value, 'token_use' => 'access'],
+                $c->requestId,
+                null,
+            );
+
+            return new LoginResult(
+                userId: $principal->userId,
+                status: $principal->status,
+                emailVerified: $principal->emailVerified,
+                accessToken: $issued->token,
+                tokenType: $issued->tokenType,
+                expiresIn: $issued->expiresIn,
+                refreshToken: $secret,
+                refreshExpiresIn: $this->refreshTtlSeconds,
+            );
+        });
     }
 }

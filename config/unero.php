@@ -28,6 +28,7 @@ return [
         'issuer' => env('IDENTITY_JWT_ISSUER', 'unero.identity-service'),
         'audience' => env('IDENTITY_JWT_AUDIENCE', 'unero-internal'),
         'access_ttl' => (int) env('IDENTITY_JWT_ACCESS_TTL', 900), // 15 minutes
+        'refresh_ttl' => (int) env('IDENTITY_JWT_REFRESH_TTL', 2592000), // 30 days
         'kid' => (string) env('IDENTITY_JWT_KID', 'dev'),
         'private_key' => (string) env('IDENTITY_JWT_PRIVATE_KEY', ''),
         'public_key' => (string) env('IDENTITY_JWT_PUBLIC_KEY', ''),

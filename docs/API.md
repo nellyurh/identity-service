@@ -19,7 +19,9 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | Method | Path | Auth | Idempotent | Purpose |
 |---|---|---|---|---|
 | POST | `/identity/register` | public | ✅ | Register a user → `201 { data: { user_id } }` |
-| POST | `/identity/login` | public | — | Verify credentials → `200 { data: Principal + access_token, token_type, expires_in }` |
+| POST | `/identity/login` | public | — | Verify credentials → `200 { data: Principal + access_token, refresh_token, token_type, expires_in, refresh_expires_in }` |
+| POST | `/identity/auth/refresh` | public | — | Rotate the token pair → `200 { data: TokenPair }` (reuse → AUTH_012, family revoked) |
+| POST | `/identity/auth/logout` | public | — | Revoke the session family → `200 { data: { user_id } }` (idempotent) |
 | GET | `/.well-known/jwks.json` | public | — | Public RS256 verification keys (JWKS) |
 | POST | `/identity/change-password` | actor | ✅ | Self-service password change → `200 { data: UserProfile }` |
 | GET | `/identity/users/{id}` | actor | — | Fetch a user → `200 { data: UserProfile }` |
@@ -41,6 +43,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `IDEMPOTENCY_001` | 400 | Idempotency-Key header missing on a mutation |
 | `IDEMPOTENCY_002` | 409 | Idempotency-Key reused with a different body |
 | `AUTH_010` | 401 | Access token invalid (signature, expiry, audience, malformed) |
+| `AUTH_011` | 401 | Refresh token invalid (unknown, revoked, or expired) |
+| `AUTH_012` | 401 | Refresh token reuse detected — the session family was revoked |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -56,7 +60,16 @@ export IDENTITY_JWT_PRIVATE_KEY="$(cat jwt-private.pem)"
 export IDENTITY_JWT_PUBLIC_KEY="$(cat jwt-public.pem)"
 ```
 
+## Refresh & sessions
+`login` also issues a **rotating refresh token** — an opaque 256-bit secret returned once and
+stored only as a SHA-256 hash, belonging to a new session **family** (30-day default TTL).
+`/auth/refresh` exchanges it for a fresh access + refresh pair and rotates the old one out;
+presenting an already-rotated token is **reuse** (a replayed/stolen token) and revokes the entire
+family (AUTH_012). `/auth/logout` revokes the family. Both are public and carry no idempotency
+key — the refresh token is itself single-use. The short-lived access token is not yet actively
+revoked on logout; it self-expires within the access TTL (active revocation via introspection +
+`jti` blacklist arrives next).
+
 ## Not yet issued
-Refresh tokens, rotation/reuse detection, revocation/blacklist, `/auth/refresh`,
-`/auth/logout`, token introspection, sessions, key rotation (`signing_keys`), and the
-`TokenIssued`/`TokenRevoked` events arrive in the next slice.
+Access-token `jti` blacklist (Redis), token introspection, multi-key rotation (`signing_keys`),
+and explicit session listing arrive in the next slice.

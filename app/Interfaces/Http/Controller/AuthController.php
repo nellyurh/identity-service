@@ -5,17 +5,24 @@ declare(strict_types=1);
 namespace App\Interfaces\Http\Controller;
 
 use App\Application\Auth\Command\LoginCommand;
+use App\Application\Auth\Command\LogoutCommand;
+use App\Application\Auth\Command\RefreshCommand;
 use App\Application\Auth\LoginUser;
+use App\Application\Auth\LogoutUser;
+use App\Application\Auth\RefreshTokens;
 use App\Application\User\Command\RegisterUserCommand;
 use App\Application\User\RegisterUser;
 use App\Interfaces\Http\Request\LoginRequest;
+use App\Interfaces\Http\Request\LogoutRequest;
+use App\Interfaces\Http\Request\RefreshRequest;
 use App\Interfaces\Http\Request\RegisterRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 /**
  * Public authentication surface. Registration is idempotent; login verifies credentials and
- * returns the principal plus a short-lived RS256 access token. Thin by design:
+ * returns the principal plus a short-lived RS256 access token and a rotating refresh token.
+ * Refresh exchanges/rotates the pair; logout revokes the whole session family. Thin by design:
  * parse -> command -> application service -> typed result -> JSON.
  */
 final class AuthController
@@ -51,7 +58,35 @@ final class AuthController
             'access_token' => $result->accessToken,
             'token_type' => $result->tokenType,
             'expires_in' => $result->expiresIn,
+            'refresh_token' => $result->refreshToken,
+            'refresh_expires_in' => $result->refreshExpiresIn,
         ]]);
+    }
+
+    public function refresh(RefreshRequest $request, RefreshTokens $handler): JsonResponse
+    {
+        $result = $handler->handle(new RefreshCommand(
+            refreshToken: (string) $request->string('refresh_token'),
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        return response()->json(['data' => [
+            'access_token' => $result->accessToken,
+            'token_type' => $result->tokenType,
+            'expires_in' => $result->expiresIn,
+            'refresh_token' => $result->refreshToken,
+            'refresh_expires_in' => $result->refreshExpiresIn,
+        ]]);
+    }
+
+    public function logout(LogoutRequest $request, LogoutUser $handler): JsonResponse
+    {
+        $result = $handler->handle(new LogoutCommand(
+            refreshToken: (string) $request->string('refresh_token'),
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        return response()->json(['data' => ['user_id' => $result->userId]]);
     }
 
     /**

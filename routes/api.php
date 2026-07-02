@@ -15,9 +15,12 @@ Route::get('/readyz', [HealthController::class, 'ready']);
 Route::get('/.well-known/jwks.json', [JwksController::class, 'index']);
 
 Route::prefix('identity')->group(function (): void {
-    // Public authentication surface.
+    // Public authentication surface. Refresh/logout carry no idempotency key: the refresh
+    // token is itself single-use, so replay is defined by rotation, not by a client key.
     Route::post('register', [AuthController::class, 'register'])->middleware('idempotency');
     Route::post('login', [AuthController::class, 'login']);
+    Route::post('auth/refresh', [AuthController::class, 'refresh']);
+    Route::post('auth/logout', [AuthController::class, 'logout']);
 
     // Internal admin surface — gateway-authenticated (auth.service resolves the actor).
     Route::middleware('auth.service')->group(function (): void {

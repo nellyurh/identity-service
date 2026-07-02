@@ -4,22 +4,29 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Application\Auth\LoginUser;
+use App\Application\Auth\RefreshTokens;
 use App\Application\Port\AuditWriter;
 use App\Application\Port\Clock;
 use App\Application\Port\PasswordHasher;
 use App\Application\Port\SigningKeyProvider;
+use App\Application\Port\TokenGenerator;
 use App\Application\Port\TokenIssuer;
 use App\Application\Port\TokenVerifier;
 use App\Application\Port\TransactionManager;
+use App\Application\User\AuthenticateUser;
+use App\Domain\Identity\Token\Repository\RefreshTokenRepository;
 use App\Domain\Identity\User\Repository\UserRepository;
 use App\Infrastructure\Audit\DatabaseAuditWriter;
 use App\Infrastructure\Clock\SystemClock;
 use App\Infrastructure\Outbox\EventBridgePublisher;
+use App\Infrastructure\Persistence\Repository\EloquentRefreshTokenRepository;
 use App\Infrastructure\Persistence\Repository\EloquentUserRepository;
 use App\Infrastructure\Security\ArgonPasswordHasher;
 use App\Infrastructure\Token\ConfigSigningKeyProvider;
 use App\Infrastructure\Token\OpensslRs256TokenIssuer;
 use App\Infrastructure\Token\OpensslRs256TokenVerifier;
+use App\Infrastructure\Token\RandomRefreshTokenGenerator;
 use App\Infrastructure\Transaction\LaravelTransactionManager;
 use Aws\EventBridge\EventBridgeClient;
 use Illuminate\Contracts\Foundation\Application;
@@ -41,6 +48,8 @@ final class DomainServiceProvider extends ServiceProvider
         $this->app->bind(TransactionManager::class, LaravelTransactionManager::class);
 
         $this->app->bind(UserRepository::class, EloquentUserRepository::class);
+        $this->app->bind(RefreshTokenRepository::class, EloquentRefreshTokenRepository::class);
+        $this->app->bind(TokenGenerator::class, RandomRefreshTokenGenerator::class);
 
         $this->app->singleton(PasswordHasher::class, static function (): ArgonPasswordHasher {
             /** @var array{memory_cost:int,time_cost:int,threads:int} $p */
@@ -70,6 +79,39 @@ final class DomainServiceProvider extends ServiceProvider
             $jwt = config('unero.jwt');
 
             return new OpensslRs256TokenVerifier($keys, $jwt['issuer'], $jwt['audience']);
+        });
+
+        // Application services that need the refresh TTL scalar (the container cannot autowire
+        // an int) are constructed explicitly; the rest autowire from the ports above.
+        $this->app->bind(LoginUser::class, static function (Application $app): LoginUser {
+            /** @var array{refresh_ttl:int} $jwt */
+            $jwt = config('unero.jwt');
+
+            return new LoginUser(
+                $app->make(AuthenticateUser::class),
+                $app->make(TokenIssuer::class),
+                $app->make(RefreshTokenRepository::class),
+                $app->make(TokenGenerator::class),
+                $app->make(AuditWriter::class),
+                $app->make(Clock::class),
+                $app->make(TransactionManager::class),
+                $jwt['refresh_ttl'],
+            );
+        });
+
+        $this->app->bind(RefreshTokens::class, static function (Application $app): RefreshTokens {
+            /** @var array{refresh_ttl:int} $jwt */
+            $jwt = config('unero.jwt');
+
+            return new RefreshTokens(
+                $app->make(TokenIssuer::class),
+                $app->make(RefreshTokenRepository::class),
+                $app->make(TokenGenerator::class),
+                $app->make(AuditWriter::class),
+                $app->make(Clock::class),
+                $app->make(TransactionManager::class),
+                $jwt['refresh_ttl'],
+            );
         });
 
         $this->app->singleton(EventBridgePublisher::class, static fn (): EventBridgePublisher => new EventBridgePublisher(

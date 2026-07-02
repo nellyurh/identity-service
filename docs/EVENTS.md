@@ -27,10 +27,16 @@ Envelope: `event_id` (UUIDv7), `event_type` (PascalCase, business-intent), `even
 | `UserDisabled` | `user_id`, `occurred_at` | (schema lands with its use case) |
 | `UserActivated` | `user_id`, `reason`, `occurred_at` | (schema lands with its use case) |
 | `ServiceAccountCreated` | `service_account_id`, `name`, `scopes`, `occurred_at` | (2G) |
+| `TokenIssued` | `user_id`, `family_id`, `access_jti`, `occurred_at` | `events/TokenIssued.schema.json` |
+| `TokenRevoked` | `user_id`, `family_id`, `reason`, `occurred_at` | `events/TokenRevoked.schema.json` |
+
+`TokenIssued` fires on login (new family) and on each refresh rotation (same family). `TokenRevoked`
+is family-level and fires on logout, on refresh-token **reuse detection**, or when a security change
+invalidates sessions; `reason` is one of `logout | reuse_detected | password_change`.
 
 Planned (landing per milestone): `RoleAssigned`, `RoleRemoved`, `PermissionGranted`,
 `PermissionRevoked` (2F), `ApiKeyCreated`, `ApiKeyRevoked` (2G), `SessionRevoked`,
-`MFAEnabled`, `MFADisabled`, `TokenIssued`, `TokenRevoked` (2E/2H).
+`MFAEnabled`, `MFADisabled` (2H).
 
 ## Consumed
 None. Identity is a source of truth for principals and access.

@@ -71,9 +71,9 @@ paths:
     post:
       summary: Authenticate a user
       description: >
-        Verifies credentials and returns the principal. Access/refresh tokens are added
-        once the auth (JWT) milestone lands. Invalid credentials and unknown accounts both
-        return AUTH_002 (no enumeration).
+        Verifies credentials and returns the principal plus a short-lived RS256 access token
+        and a rotating refresh token (a new session family). Invalid credentials and unknown
+        accounts both return AUTH_002 (no enumeration).
       requestBody:
         required: true
         content:
@@ -89,6 +89,62 @@ paths:
                 required: [data]
                 properties:
                   data: { $ref: "#/components/schemas/LoginData" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/auth/refresh:
+    post:
+      summary: Rotate an access + refresh token pair
+      description: >
+        Exchanges a refresh token for a new access + refresh pair (single-use rotation).
+        Presenting an already-rotated token is reuse (AUTH_012) and revokes the whole family;
+        an unknown, revoked, or expired token returns AUTH_011. No idempotency key: the refresh
+        token is itself single-use.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshRequest" }
+      responses:
+        "200":
+          description: rotated
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/TokenPair" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/auth/logout:
+    post:
+      summary: Log out (revoke the session family)
+      description: >
+        Revokes the entire refresh-token family the presented token belongs to. Idempotent —
+        logging out an already-revoked family still returns 200. The short-lived access token
+        is not blacklisted here; it self-expires within the access TTL. AUTH_011 if the token
+        is unknown.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LogoutRequest" }
+      responses:
+        "200":
+          description: logged out
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [user_id]
+                    properties:
+                      user_id: { $ref: "#/components/schemas/Ulid" }
         "401": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
 
@@ -273,11 +329,32 @@ components:
       allOf:
         - $ref: "#/components/schemas/Principal"
         - type: object
-          required: [access_token, token_type, expires_in]
+          required: [access_token, token_type, expires_in, refresh_token, refresh_expires_in]
           properties:
             access_token: { type: string, description: RS256 JWT }
             token_type: { type: string, enum: [Bearer] }
             expires_in: { type: integer, description: seconds }
+            refresh_token: { type: string, description: opaque single-use refresh secret (rotates) }
+            refresh_expires_in: { type: integer, description: seconds }
+    TokenPair:
+      type: object
+      required: [access_token, token_type, expires_in, refresh_token, refresh_expires_in]
+      properties:
+        access_token: { type: string, description: RS256 JWT }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer, description: seconds }
+        refresh_token: { type: string, description: opaque single-use refresh secret (rotates) }
+        refresh_expires_in: { type: integer, description: seconds }
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+    LogoutRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
     Jwk:
       type: object
       required: [kty, use, alg, kid, n, e]
