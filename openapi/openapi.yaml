@@ -1256,10 +1256,12 @@ components:
         expires_in: { type: integer, example: 300 }
     MfaLoginRequest:
       type: object
-      required: [challenge_token, code]
+      required: [challenge_token]
+      description: Supply exactly one second factor — code (TOTP) or recovery_code.
       properties:
         challenge_token: { type: string }
-        code: { type: string, pattern: "^[0-9]{6}$" }
+        code: { type: string, pattern: "^[0-9]{6}$", description: 6-digit TOTP code }
+        recovery_code: { type: string, description: a one-time recovery code }
     ServiceTokenData:
       type: object
       required: [access_token, token_type, expires_in, scope]

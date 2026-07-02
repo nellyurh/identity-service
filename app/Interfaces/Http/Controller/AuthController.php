@@ -84,7 +84,8 @@ final class AuthController
     {
         $result = $handler->handle(new CompleteMfaLoginCommand(
             challengeToken: (string) $request->string('challenge_token'),
-            code: (string) $request->string('code'),
+            code: $request->filled('code') ? (string) $request->string('code') : null,
+            recoveryCode: $request->filled('recovery_code') ? (string) $request->string('recovery_code') : null,
             requestId: (string) $request->attributes->get('request_id'),
         ));
 

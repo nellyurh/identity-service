@@ -18,7 +18,9 @@ final class MfaLoginRequest extends FormRequest
     {
         return [
             'challenge_token' => ['required', 'string'],
-            'code' => ['required', 'string', 'regex:/^[0-9]{6}$/'],
+            // Exactly one second factor: a 6-digit TOTP code or a recovery code.
+            'code' => ['required_without:recovery_code', 'nullable', 'string', 'regex:/^[0-9]{6}$/'],
+            'recovery_code' => ['required_without:code', 'nullable', 'string'],
         ];
     }
 }

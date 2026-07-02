@@ -197,8 +197,8 @@ returns `disabled: false` and does nothing.
 **Recovery codes.** Confirming enrollment also returns a one-time batch (default 10) in
 `data.recovery_codes`, shown once; only their hashes are stored. `POST /users/{id}/mfa/recovery-codes`
 regenerates the batch, invalidating the previous one (requires active MFA, else `404 MFA_005`).
-Disabling MFA clears them. A recovery code can stand in for a TOTP code at `POST /login/mfa` (landing
-in the consumption slice).
+Disabling MFA clears them. A recovery code can stand in for a TOTP code at `POST /login/mfa` (send
+`recovery_code` instead of `code`); it's verified against the stored hashes and consumed single-use.
 
 ## Service tokens (client credentials)
 Platform services authenticate to each other with their own rotatable credential rather than a
