@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Http\Controller;
 
+use App\Application\User\AssignRole;
 use App\Application\User\ChangePassword;
+use App\Application\User\Command\AssignRoleCommand;
 use App\Application\User\Command\ChangePasswordCommand;
 use App\Application\User\Command\DeleteUserCommand;
 use App\Application\User\Command\DisableUserCommand;
 use App\Application\User\Command\EnableUserCommand;
+use App\Application\User\Command\RevokeRoleCommand;
 use App\Application\User\DeleteUser;
 use App\Application\User\DisableUser;
 use App\Application\User\EnableUser;
 use App\Application\User\GetUser;
 use App\Application\User\Result\UserProfile;
+use App\Application\User\RevokeRole;
 use App\Domain\Identity\User\Exception\UserNotFound;
+use App\Interfaces\Http\Request\AssignRoleRequest;
 use App\Interfaces\Http\Request\ChangePasswordRequest;
 use App\Interfaces\Http\Request\UserActionRequest;
 use App\Interfaces\Http\Request\UserLookupRequest;
@@ -110,6 +115,34 @@ final class UserController
         return response()->json(['data' => $this->present($profile)]);
     }
 
+    public function assignRole(string $id, AssignRoleRequest $request, AssignRole $handler): JsonResponse
+    {
+        $actor = $this->actor($request);
+
+        $profile = $handler->handle(new AssignRoleCommand(
+            userId: $id,
+            roleId: (string) $request->string('role_id'),
+            actorId: $actor['id'],
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        return response()->json(['data' => $this->present($profile)]);
+    }
+
+    public function revokeRole(string $id, string $roleId, Request $request, RevokeRole $handler): JsonResponse
+    {
+        $actor = $this->actor($request);
+
+        $profile = $handler->handle(new RevokeRoleCommand(
+            userId: $id,
+            roleId: $roleId,
+            actorId: $actor['id'],
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        return response()->json(['data' => $this->present($profile)]);
+    }
+
     /** @return array<string,mixed> */
     private function present(UserProfile $p): array
     {
@@ -119,6 +152,8 @@ final class UserController
             'username' => $p->username,
             'status' => $p->status,
             'email_verified' => $p->emailVerified,
+            'roles' => $p->roles,
+            'authz_version' => $p->authzVersion,
             'created_at' => $p->createdAt,
             'updated_at' => $p->updatedAt,
         ];

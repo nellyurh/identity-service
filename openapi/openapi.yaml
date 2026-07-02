@@ -342,6 +342,50 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /identity/users/{id}/roles:
+    post:
+      summary: Assign a role to a user
+      description: Idempotent. Bumps the user's authz_version. The role must exist (ROLE_001 otherwise).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AssignRoleRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/UserProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/users/{id}/roles/{roleId}:
+    delete:
+      summary: Revoke a role from a user
+      description: Idempotent. Bumps the user's authz_version.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - name: roleId
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200": { $ref: "#/components/responses/UserProfile" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /identity/change-password:
     post:
       summary: Change own password (self-service)
@@ -606,6 +650,11 @@ components:
       required: [permission]
       properties:
         permission: { type: string, pattern: "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$", example: user.read }
+    AssignRoleRequest:
+      type: object
+      required: [role_id]
+      properties:
+        role_id: { $ref: "#/components/schemas/Ulid" }
     IntrospectionData:
       type: object
       required: [active]
@@ -627,12 +676,16 @@ components:
         e: { type: string }
     UserProfile:
       type: object
-      required: [user_id, email, username, status, email_verified, created_at, updated_at]
+      required: [user_id, email, username, status, email_verified, roles, authz_version, created_at, updated_at]
       properties:
         user_id: { $ref: "#/components/schemas/Ulid" }
         email: { type: string, format: email }
         username: { type: string }
         status: { type: string, enum: [active, disabled, deleted] }
         email_verified: { type: boolean }
+        roles:
+          type: array
+          items: { $ref: "#/components/schemas/Ulid" }
+        authz_version: { type: integer }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }

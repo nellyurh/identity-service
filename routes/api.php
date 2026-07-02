@@ -53,6 +53,9 @@ Route::prefix('identity')->group(function (): void {
             Route::post('users/{id}/disable', [UserController::class, 'disable'])->whereUlid('id');
             Route::post('users/{id}/enable', [UserController::class, 'enable'])->whereUlid('id');
             Route::delete('users/{id}', [UserController::class, 'destroy'])->whereUlid('id');
+            Route::post('users/{id}/roles', [UserController::class, 'assignRole'])->whereUlid('id');
+            Route::delete('users/{id}/roles/{roleId}', [UserController::class, 'revokeRole'])
+                ->whereUlid('id')->whereUlid('roleId');
         });
     });
 });

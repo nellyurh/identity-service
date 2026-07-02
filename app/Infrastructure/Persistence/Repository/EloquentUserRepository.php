@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Persistence\Repository;
 
+use App\Domain\Identity\Role\ValueObject\RoleId;
 use App\Domain\Identity\User\Exception\UserNotFound;
 use App\Domain\Identity\User\Repository\UserRepository;
 use App\Domain\Identity\User\User;
@@ -16,6 +17,8 @@ use App\Infrastructure\Outbox\OutboxWriter;
 use App\Infrastructure\Persistence\Model\UserModel;
 use DateTimeImmutable;
 use DateTimeInterface;
+use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\Uid\Ulid;
 
 /**
@@ -70,11 +73,14 @@ final readonly class EloquentUserRepository implements UserRepository
                 'username' => $user->username()->value,
                 'password_hash' => $user->passwordHash()->value,
                 'status' => $user->status()->value,
+                'authz_version' => $user->authzVersion(),
                 'email_verified_at' => $user->emailVerifiedAt(),
                 'created_at' => $user->createdAt(),
                 'updated_at' => $user->updatedAt(),
             ],
         );
+
+        $this->syncRoles($user);
 
         foreach ($user->releaseEvents() as $event) {
             $this->outbox->write(
@@ -108,7 +114,40 @@ final readonly class EloquentUserRepository implements UserRepository
             $this->toImmutable($model->email_verified_at),
             $this->toImmutable($model->created_at) ?? new DateTimeImmutable,
             $this->toImmutable($model->updated_at) ?? new DateTimeImmutable,
+            $this->roleIds($model->id),
+            $model->authz_version,
         );
+    }
+
+    /** Re-sync the user_roles pivot from the aggregate's role set (tenant-global for now). */
+    private function syncRoles(User $user): void
+    {
+        DB::table('user_roles')->where('user_id', $user->id->value)->delete();
+
+        $now = Date::now()->toImmutable();
+        $rows = [];
+        foreach ($user->roleIds() as $roleId) {
+            $rows[] = [
+                'user_id' => $user->id->value,
+                'role_id' => $roleId->value,
+                'tenant_id' => '',
+                'created_at' => $now,
+            ];
+        }
+        if ($rows !== []) {
+            DB::table('user_roles')->insert($rows);
+        }
+    }
+
+    /** @return list<RoleId> */
+    private function roleIds(string $userId): array
+    {
+        $ids = [];
+        foreach (DB::table('user_roles')->where('user_id', $userId)->pluck('role_id') as $roleId) {
+            $ids[] = new RoleId((string) $roleId);
+        }
+
+        return $ids;
     }
 
     private function toImmutable(?DateTimeInterface $value): ?DateTimeImmutable

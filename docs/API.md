@@ -38,6 +38,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | POST | `/identity/users/{id}/disable` | actor | ✅ | Disable → `200 { data: UserProfile }` |
 | POST | `/identity/users/{id}/enable` | actor | ✅ | Re-enable → `200 { data: UserProfile }` |
 | DELETE | `/identity/users/{id}` | actor | ✅ | Soft-delete → `200 { data: UserProfile }` |
+| POST | `/identity/users/{id}/roles` | actor | ✅ | Assign a role → `200 { data: UserProfile }` (bumps authz_version) |
+| DELETE | `/identity/users/{id}/roles/{roleId}` | actor | ✅ | Revoke a role → `200 { data: UserProfile }` (bumps authz_version) |
 
 ## Error codes (this surface)
 

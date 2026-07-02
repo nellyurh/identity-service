@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Domain\Identity\User;
 
+use App\Domain\Identity\Role\ValueObject\RoleId;
 use App\Domain\Identity\User\Event\EmailVerified;
 use App\Domain\Identity\User\Event\PasswordChanged;
+use App\Domain\Identity\User\Event\RoleAssigned;
+use App\Domain\Identity\User\Event\RoleRemoved;
 use App\Domain\Identity\User\Event\UserActivated;
 use App\Domain\Identity\User\Event\UserDisabled;
 use App\Domain\Identity\User\Event\UserRegistered;
@@ -29,6 +32,7 @@ final class User
     /** @var list<DomainEvent> */
     private array $recordedEvents = [];
 
+    /** @param list<RoleId> $roleIds */
     private function __construct(
         public readonly UserId $id,
         private readonly Email $email,
@@ -38,6 +42,8 @@ final class User
         private ?DateTimeImmutable $emailVerifiedAt,
         private readonly DateTimeImmutable $createdAt,
         private DateTimeImmutable $updatedAt,
+        private array $roleIds,
+        private int $authzVersion,
     ) {}
 
     /**
@@ -51,7 +57,7 @@ final class User
         HashedPassword $passwordHash,
         DateTimeImmutable $now,
     ): self {
-        $user = new self($id, $email, $username, $passwordHash, UserStatus::Active, null, $now, $now);
+        $user = new self($id, $email, $username, $passwordHash, UserStatus::Active, null, $now, $now, [], 1);
 
         $user->recordedEvents[] = new UserRegistered(
             userId: $id->value,
@@ -62,6 +68,7 @@ final class User
         return $user;
     }
 
+    /** @param list<RoleId> $roleIds */
     public static function reconstitute(
         UserId $id,
         Email $email,
@@ -71,8 +78,10 @@ final class User
         ?DateTimeImmutable $emailVerifiedAt,
         DateTimeImmutable $createdAt,
         DateTimeImmutable $updatedAt,
+        array $roleIds,
+        int $authzVersion,
     ): self {
-        return new self($id, $email, $username, $passwordHash, $status, $emailVerifiedAt, $createdAt, $updatedAt);
+        return new self($id, $email, $username, $passwordHash, $status, $emailVerifiedAt, $createdAt, $updatedAt, $roleIds, $authzVersion);
     }
 
     public function verifyEmail(DateTimeImmutable $now): void
@@ -132,6 +141,63 @@ final class User
     {
         $this->status = UserStatus::Deleted;
         $this->touch($now);
+    }
+
+    /**
+     * Assign a role (idempotent: assigning a role the user already holds is a no-op that neither
+     * bumps authz_version nor emits an event). Any real change bumps authz_version so cached
+     * authorization for this user — including claims baked into already-issued tokens — is stale.
+     */
+    public function assignRole(RoleId $roleId, DateTimeImmutable $now): void
+    {
+        if ($this->hasRole($roleId)) {
+            return;
+        }
+
+        $this->roleIds[] = $roleId;
+        $this->authzVersion++;
+        $this->touch($now);
+
+        $this->recordedEvents[] = new RoleAssigned($this->id->value, $roleId->value, $this->authzVersion, $now->format(DATE_RFC3339));
+    }
+
+    /** Revoke a role (idempotent: revoking a role the user does not hold is a no-op). */
+    public function revokeRole(RoleId $roleId, DateTimeImmutable $now): void
+    {
+        if (! $this->hasRole($roleId)) {
+            return;
+        }
+
+        $this->roleIds = array_values(array_filter(
+            $this->roleIds,
+            static fn (RoleId $r): bool => ! $r->equals($roleId),
+        ));
+        $this->authzVersion++;
+        $this->touch($now);
+
+        $this->recordedEvents[] = new RoleRemoved($this->id->value, $roleId->value, $this->authzVersion, $now->format(DATE_RFC3339));
+    }
+
+    public function hasRole(RoleId $roleId): bool
+    {
+        foreach ($this->roleIds as $r) {
+            if ($r->equals($roleId)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @return list<RoleId> */
+    public function roleIds(): array
+    {
+        return $this->roleIds;
+    }
+
+    public function authzVersion(): int
+    {
+        return $this->authzVersion;
     }
 
     /** @throws AccountNotActive when the account is not in a state that permits login. */
