@@ -26,6 +26,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | POST | `/identity/auth/password/reset` | public | — | Complete a reset → `200 { data: user_id, reset }` (revokes all sessions) |
 | POST | `/identity/internal/password-reset/deliveries/{ref}/materialize` | actor | — | Exchange a delivery_ref → `200 { data: email, token, expires_at }` (token minted, shown once) |
 | POST | `/identity/users/{id}/email/verification-request` | actor | ✅ | Issue a verification token → `200 { data: token, expires_at }` (token shown once) |
+| POST | `/identity/users/{id}/mfa/totp/enroll` | actor | ✅ | Begin TOTP enrollment → `200 { data: secret, provisioning_uri }` (secret shown once) |
+| POST | `/identity/users/{id}/mfa/totp/confirm` | actor | ✅ | Confirm with a code → `200 { data: enabled }` (activates, emits MFAEnabled) |
 | POST | `/identity/auth/refresh` | public | — | Rotate the token pair → `200 { data: TokenPair }` (reuse → AUTH_012, family revoked) |
 | POST | `/identity/auth/logout` | public | — | Revoke the session family → `200 { data: { user_id } }` (idempotent) |
 | POST | `/identity/tokens/introspect` | service | — | Verify + denylist-check an access token → `200 { data: { active, sub?, jti?, token_use?, exp? } }` |
@@ -88,6 +90,9 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `VERIFICATION_001` | 400 | Email verification token is invalid, used, or expired |
 | `RESET_001` | 404 | Password reset delivery reference is invalid, already materialised, or expired |
 | `RESET_002` | 400 | Password reset token is invalid, used, unmaterialised, or expired |
+| `MFA_001` | 409 | MFA is already enabled for this user |
+| `MFA_002` | 422 | TOTP verification code is incorrect |
+| `MFA_003` | 404 | No pending MFA enrollment to confirm |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -159,6 +164,18 @@ new_password}` redeems the token by hash, sets the new password (emitting `Passw
 the token, and **revokes every one of the user's refresh families** (`RevocationReason::PasswordChange`,
 one `TokenRevoked` per family) so all existing sessions die. No current-password check.
 Unknown/used/unmaterialised/expired tokens fail generically with `400 RESET_002`.
+
+## MFA (TOTP)
+Two-step enrollment. `POST /users/{id}/mfa/totp/enroll` generates a base32 secret, stores it
+**encrypted at rest** (`SecretCipher`) in a *pending* credential, and returns the secret + an
+`otpauth://` provisioning URI once (to key in or render as a QR code). The secret is encrypted, not
+hashed — the server must recompute codes to verify them. Enrolling when MFA is already active is
+`409 MFA_001`; enrolling again while pending supersedes the previous secret.
+
+`POST /users/{id}/mfa/totp/confirm {code}` verifies the code (RFC 6238, ±1 step of skew) against the
+decrypted secret and, on success, activates the credential and emits `MFAEnabled`. No pending
+enrollment → `404 MFA_003`; wrong code → `422 MFA_002`. Using this factor as a second step at login,
+and disabling it, land in later slices (2H-c2 / 2H-c3).
 
 ## Service tokens (client credentials)
 Platform services authenticate to each other with their own rotatable credential rather than a

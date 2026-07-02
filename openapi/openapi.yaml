@@ -753,6 +753,71 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /identity/users/{id}/mfa/totp/enroll:
+    post:
+      summary: Begin TOTP MFA enrollment
+      description: Gateway-authenticated. Returns the base32 secret + otpauth URI once (secret encrypted at rest). Already-active MFA returns MFA_001.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: enrollment started (secret shown once)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [secret, provisioning_uri]
+                    properties:
+                      secret: { type: string, description: base32 TOTP secret, shown once }
+                      provisioning_uri: { type: string, description: otpauth:// URI for QR display }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
+  /identity/users/{id}/mfa/totp/confirm:
+    post:
+      summary: Confirm TOTP MFA enrollment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ConfirmTotpRequest" }
+      responses:
+        "200":
+          description: MFA enabled
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [enabled]
+                    properties:
+                      enabled: { type: boolean }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
   /identity/change-password:
     post:
       summary: Change own password (self-service)
@@ -1089,6 +1154,11 @@ components:
       properties:
         token: { type: string, description: the raw reset token }
         new_password: { type: string, minLength: 8, maxLength: 4096 }
+    ConfirmTotpRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, pattern: "^[0-9]{6}$", description: the 6-digit TOTP code }
     ServiceTokenData:
       type: object
       required: [access_token, token_type, expires_in, scope]

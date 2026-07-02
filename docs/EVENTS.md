@@ -41,12 +41,13 @@ Envelope: `event_id` (UUIDv7), `event_type` (PascalCase, business-intent), `even
 | `ApiKeyRevoked` | `api_key_id`, `occurred_at` | `events/ApiKeyRevoked.schema.json` |
 | `ApiKeyRotated` | `api_key_id`, `replacement_id`, `occurred_at` | `events/ApiKeyRotated.schema.json` |
 | `PasswordResetRequested` | `user_id`, `delivery_ref`, `occurred_at` | `events/PasswordResetRequested.schema.json` |
+| `MFAEnabled` | `user_id`, `method`, `occurred_at` | `events/MFAEnabled.schema.json` |
 
 `TokenIssued` fires on login (new family) and on each refresh rotation (same family). `TokenRevoked`
 is family-level and fires on logout, on refresh-token **reuse detection**, or when a security change
 invalidates sessions; `reason` is one of `logout | reuse_detected | password_change`.
 
-Planned (landing per milestone): `SessionRevoked`, `MFAEnabled`, `MFADisabled` (2H).
+Planned (landing per milestone): `MFADisabled` (2H-c3), `SessionRevoked`.
 
 Note: seeding the built-in roles emits `RoleCreated` and one `PermissionGranted` per seeded grant
 (e.g. `super_admin` emits 22). This is intentional — the grants genuinely occur — and only runs on

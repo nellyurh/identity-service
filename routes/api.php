@@ -7,6 +7,7 @@ use App\Interfaces\Http\Controller\AuthController;
 use App\Interfaces\Http\Controller\EmailVerificationController;
 use App\Interfaces\Http\Controller\HealthController;
 use App\Interfaces\Http\Controller\JwksController;
+use App\Interfaces\Http\Controller\MfaController;
 use App\Interfaces\Http\Controller\PasswordResetController;
 use App\Interfaces\Http\Controller\PermissionController;
 use App\Interfaces\Http\Controller\RoleController;
@@ -83,6 +84,8 @@ Route::prefix('identity')->group(function (): void {
             Route::post('api-keys/{id}/rotate', [ApiKeyController::class, 'rotate'])->whereUlid('id');
             Route::delete('api-keys/{id}', [ApiKeyController::class, 'destroy'])->whereUlid('id');
             Route::post('users/{id}/email/verification-request', [EmailVerificationController::class, 'request'])->whereUlid('id');
+            Route::post('users/{id}/mfa/totp/enroll', [MfaController::class, 'enrollTotp'])->whereUlid('id');
+            Route::post('users/{id}/mfa/totp/confirm', [MfaController::class, 'confirmTotp'])->whereUlid('id');
         });
     });
 });
