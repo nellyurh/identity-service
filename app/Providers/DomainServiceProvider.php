@@ -6,7 +6,7 @@ namespace App\Providers;
 
 use App\Application\ApiKey\CreateApiKey;
 use App\Application\ApiKey\RotateApiKey;
-use App\Application\Auth\LoginUser;
+use App\Application\Auth\IssueUserSession;
 use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
 use App\Application\EmailVerification\RequestEmailVerification;
@@ -24,7 +24,6 @@ use App\Application\Port\TokenIssuer;
 use App\Application\Port\TokenVerifier;
 use App\Application\Port\TotpProvider;
 use App\Application\Port\TransactionManager;
-use App\Application\User\AuthenticateUser;
 use App\Domain\Identity\ApiKey\Repository\ApiKeyRepository;
 use App\Domain\Identity\EmailVerification\Repository\EmailVerificationTokenRepository;
 use App\Domain\Identity\Mfa\Repository\TotpCredentialRepository;
@@ -133,18 +132,15 @@ final class DomainServiceProvider extends ServiceProvider
 
         // Application services that need the refresh TTL scalar (the container cannot autowire
         // an int) are constructed explicitly; the rest autowire from the ports above.
-        $this->app->bind(LoginUser::class, static function (Application $app): LoginUser {
+        $this->app->bind(IssueUserSession::class, static function (Application $app): IssueUserSession {
             /** @var array{refresh_ttl:int} $jwt */
             $jwt = config('unero.jwt');
 
-            return new LoginUser(
-                $app->make(AuthenticateUser::class),
+            return new IssueUserSession(
                 $app->make(TokenIssuer::class),
                 $app->make(RefreshTokenRepository::class),
                 $app->make(TokenGenerator::class),
                 $app->make(AuditWriter::class),
-                $app->make(Clock::class),
-                $app->make(TransactionManager::class),
                 $app->make(AuthorizationResolver::class),
                 $jwt['refresh_ttl'],
             );
