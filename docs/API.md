@@ -29,6 +29,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | POST | `/identity/users/{id}/email/verification-request` | actor | ✅ | Issue a verification token → `200 { data: token, expires_at }` (token shown once) |
 | POST | `/identity/users/{id}/mfa/totp/enroll` | actor | ✅ | Begin TOTP enrollment → `200 { data: secret, provisioning_uri }` (secret shown once) |
 | POST | `/identity/users/{id}/mfa/totp/confirm` | actor | ✅ | Confirm with a code → `200 { data: enabled }` (activates, emits MFAEnabled) |
+| POST | `/identity/users/{id}/mfa/totp/disable` | actor | ✅ | Turn off MFA → `200 { data: disabled }` (emits MFADisabled; idempotent) |
 | POST | `/identity/auth/refresh` | public | — | Rotate the token pair → `200 { data: TokenPair }` (reuse → AUTH_012, family revoked) |
 | POST | `/identity/auth/logout` | public | — | Revoke the session family → `200 { data: { user_id } }` (idempotent) |
 | POST | `/identity/tokens/introspect` | service | — | Verify + denylist-check an access token → `200 { data: { active, sub?, jti?, token_use?, exp? } }` |
@@ -186,6 +187,10 @@ hash — being opaque it can never be mistaken for an access token. The client c
 challenge is consumed, and a normal session (access + refresh) is issued via the same path as a direct
 login. Invalid/used/expired challenge → `401 MFA_004`; wrong code → `422 MFA_002`. (Per-attempt MFA
 lockout is deferred to the 2I hardening pass.)
+
+**Disabling.** `POST /users/{id}/mfa/totp/disable` turns off the active credential and emits
+`MFADisabled`; subsequent logins stop challenging. It's idempotent — with no active credential it
+returns `disabled: false` and does nothing.
 
 ## Service tokens (client credentials)
 Platform services authenticate to each other with their own rotatable credential rather than a

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Identity\Mfa;
 
+use App\Domain\Identity\Mfa\Event\MFADisabled;
 use App\Domain\Identity\Mfa\Event\MFAEnabled;
 use App\Domain\Identity\User\ValueObject\UserId;
 use App\Domain\Shared\Event\DomainEvent;
@@ -57,6 +58,18 @@ final class TotpCredential
         $this->updatedAt = $now;
 
         $this->recordedEvents[] = new MFAEnabled($this->userId->value, 'totp', $now->format(DATE_RFC3339));
+    }
+
+    /** Turn off an active second factor. No-op unless active. Emits MFADisabled. */
+    public function disable(DateTimeImmutable $now): void
+    {
+        if ($this->status !== TotpStatus::Active) {
+            return;
+        }
+        $this->status = TotpStatus::Disabled;
+        $this->updatedAt = $now;
+
+        $this->recordedEvents[] = new MFADisabled($this->userId->value, 'totp', $now->format(DATE_RFC3339));
     }
 
     public function isActive(): bool

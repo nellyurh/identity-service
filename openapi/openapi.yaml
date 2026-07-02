@@ -843,6 +843,34 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
 
+  /identity/users/{id}/mfa/totp/disable:
+    post:
+      summary: Disable TOTP MFA
+      description: Turns off the active credential (emits MFADisabled). Idempotent — disabled=false when nothing was active.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: MFA disabled (or already off)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [disabled]
+                    properties:
+                      disabled: { type: boolean }
+        "401": { $ref: "#/components/responses/Error" }
+
   /identity/change-password:
     post:
       summary: Change own password (self-service)

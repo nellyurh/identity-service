@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Interfaces\Http\Controller;
 
 use App\Application\Mfa\Command\ConfirmTotpCommand;
+use App\Application\Mfa\Command\DisableMfaCommand;
 use App\Application\Mfa\Command\EnrollTotpCommand;
 use App\Application\Mfa\ConfirmTotp;
+use App\Application\Mfa\DisableMfa;
 use App\Application\Mfa\EnrollTotp;
 use App\Interfaces\Http\Request\ConfirmTotpRequest;
 use Illuminate\Http\JsonResponse;
@@ -42,6 +44,17 @@ final class MfaController
         ));
 
         return response()->json(['data' => ['enabled' => $result->enabled]]);
+    }
+
+    public function disableTotp(string $id, Request $request, DisableMfa $handler): JsonResponse
+    {
+        $result = $handler->handle(new DisableMfaCommand(
+            userId: $id,
+            actorId: $this->actorId($request),
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        return response()->json(['data' => ['disabled' => $result->disabled]]);
     }
 
     private function actorId(Request $request): string
