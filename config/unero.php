@@ -32,6 +32,9 @@ return [
         'kid' => (string) env('IDENTITY_JWT_KID', 'dev'),
         'private_key' => (string) env('IDENTITY_JWT_PRIVATE_KEY', ''),
         'public_key' => (string) env('IDENTITY_JWT_PUBLIC_KEY', ''),
+        // JSON object {kid: public_pem} of previous keys still trusted for verification during a
+        // rotation. Kept as a raw string so config:cache stays serialisable; parsed in the provider.
+        'verify_only_public_keys' => (string) env('IDENTITY_JWT_VERIFY_ONLY_PUBLIC_KEYS', ''),
     ],
 
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).

@@ -63,10 +63,20 @@ final class DomainServiceProvider extends ServiceProvider
         });
 
         $this->app->singleton(SigningKeyProvider::class, static function (): ConfigSigningKeyProvider {
-            /** @var array{private_key:string,public_key:string,kid:string} $jwt */
+            /** @var array{private_key:string,public_key:string,kid:string,verify_only_public_keys:string} $jwt */
             $jwt = config('unero.jwt');
 
-            return new ConfigSigningKeyProvider($jwt['private_key'], $jwt['public_key'], $jwt['kid']);
+            $verifyOnly = [];
+            $decoded = $jwt['verify_only_public_keys'] !== '' ? json_decode($jwt['verify_only_public_keys'], true) : [];
+            if (is_array($decoded)) {
+                foreach ($decoded as $kid => $pem) {
+                    if (is_string($kid) && is_string($pem)) {
+                        $verifyOnly[$kid] = $pem;
+                    }
+                }
+            }
+
+            return new ConfigSigningKeyProvider($jwt['private_key'], $jwt['public_key'], $jwt['kid'], $verifyOnly);
         });
 
         $this->app->singleton(TokenIssuer::class, static function (Application $app): OpensslRs256TokenIssuer {

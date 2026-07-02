@@ -6,9 +6,9 @@ namespace App\Application\Port;
 
 /**
  * Supplies the signing material for access tokens. The private key never leaves this service;
- * public keys are published via jwks() so every other service can verify tokens offline.
- * Multi-key rotation (verify against several keys, sign with the current one) lands with the
- * signing_keys lifecycle in a later slice; today there is one active key.
+ * public keys are published via jwks() so every other service can verify tokens offline. One key
+ * signs (the current kid); verification resolves the key by the token's kid, so several non-retired
+ * keys can be honoured at once — enabling zero-downtime rotation.
  */
 interface SigningKeyProvider
 {

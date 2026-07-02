@@ -61,6 +61,14 @@ export IDENTITY_JWT_PRIVATE_KEY="$(cat jwt-private.pem)"
 export IDENTITY_JWT_PUBLIC_KEY="$(cat jwt-public.pem)"
 ```
 
+**Key rotation (zero-downtime).** The token header carries a `kid`; verifiers resolve the key by
+`kid`, so several keys can be trusted at once. To rotate: promote a new current key
+(`IDENTITY_JWT_KID` / `IDENTITY_JWT_PRIVATE_KEY` / `IDENTITY_JWT_PUBLIC_KEY`) and move the previous
+**public** key into `IDENTITY_JWT_VERIFY_ONLY_PUBLIC_KEYS` — a JSON object `{ "<kid>": "<pem>" }`.
+JWKS then publishes the whole set; tokens signed by the old key keep verifying until they expire,
+after which its entry is dropped. (An automated DB-backed `signing_keys` lifecycle can replace the
+env wiring later without changing the token/JWKS contract.)
+
 ## Refresh & sessions
 `login` also issues a **rotating refresh token** — an opaque 256-bit secret returned once and
 stored only as a SHA-256 hash, belonging to a new session **family** (30-day default TTL).
@@ -74,5 +82,5 @@ revocation near-real-time. Routine stateless verification does not check the den
 the short access TTL.
 
 ## Not yet issued
-Multi-key signing rotation (`signing_keys`, multiple active `kid`s), password-change-triggered
-session revocation, and explicit session listing arrive in the next slices.
+An automated DB-backed signing-key lifecycle (`signing_keys`, scheduled promotion/retirement),
+password-change-triggered session revocation, and explicit session listing arrive in later slices.
