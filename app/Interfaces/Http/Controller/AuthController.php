@@ -12,6 +12,8 @@ use App\Application\Auth\IntrospectToken;
 use App\Application\Auth\LoginUser;
 use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
+use App\Application\ServiceAccount\Command\IssueServiceTokenCommand;
+use App\Application\ServiceAccount\IssueServiceToken;
 use App\Application\User\Command\RegisterUserCommand;
 use App\Application\User\RegisterUser;
 use App\Interfaces\Http\Request\IntrospectRequest;
@@ -19,6 +21,7 @@ use App\Interfaces\Http\Request\LoginRequest;
 use App\Interfaces\Http\Request\LogoutRequest;
 use App\Interfaces\Http\Request\RefreshRequest;
 use App\Interfaces\Http\Request\RegisterRequest;
+use App\Interfaces\Http\Request\ServiceTokenRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -90,6 +93,22 @@ final class AuthController
         ));
 
         return response()->json(['data' => ['user_id' => $result->userId]]);
+    }
+
+    public function serviceToken(ServiceTokenRequest $request, IssueServiceToken $handler): JsonResponse
+    {
+        $result = $handler->handle(new IssueServiceTokenCommand(
+            clientId: (string) $request->string('client_id'),
+            clientSecret: (string) $request->string('client_secret'),
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        return response()->json(['data' => [
+            'access_token' => $result->accessToken,
+            'token_type' => $result->tokenType,
+            'expires_in' => $result->expiresIn,
+            'scope' => implode(' ', $result->scopes),
+        ]]);
     }
 
     public function introspect(IntrospectRequest $request, IntrospectToken $handler): JsonResponse

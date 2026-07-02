@@ -92,6 +92,32 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
 
+  /identity/service/token:
+    post:
+      summary: Client-credentials grant (service-to-service)
+      description: >
+        Authenticates a service account by client_id (its name) and client_secret and returns a
+        short-lived RS256 service token (token_use=service) carrying the account's scopes. No refresh
+        token is issued. Unknown client, wrong secret, and disabled account all return SERVICE_004
+        (no enumeration).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ServiceTokenRequest" }
+      responses:
+        "200":
+          description: service token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ServiceTokenData" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
   /identity/auth/refresh:
     post:
       summary: Rotate an access + refresh token pair
@@ -781,6 +807,21 @@ components:
         scopes:
           type: array
           items: { type: string, pattern: "^[a-z][a-z0-9_]*[.:][a-z][a-z0-9_*]*$", example: wallet.credit }
+    ServiceTokenRequest:
+      type: object
+      required: [client_id, client_secret]
+      properties:
+        grant_type: { type: string, enum: [client_credentials] }
+        client_id: { type: string, description: the service account name, example: wallet }
+        client_secret: { type: string, description: the plaintext client secret }
+    ServiceTokenData:
+      type: object
+      required: [access_token, token_type, expires_in, scope]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, example: Bearer }
+        expires_in: { type: integer, example: 900 }
+        scope: { type: string, description: space-delimited granted scopes, example: "wallet.credit wallet.debit" }
     IntrospectionData:
       type: object
       required: [active]

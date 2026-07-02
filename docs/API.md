@@ -20,6 +20,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 |---|---|---|---|---|
 | POST | `/identity/register` | public | ✅ | Register a user → `201 { data: { user_id } }` |
 | POST | `/identity/login` | public | — | Verify credentials → `200 { data: Principal + access_token, refresh_token, token_type, expires_in, refresh_expires_in }` |
+| POST | `/identity/service/token` | public | — | Client-credentials grant → `200 { data: access_token, token_type, expires_in, scope }` (service token) |
 | POST | `/identity/auth/refresh` | public | — | Rotate the token pair → `200 { data: TokenPair }` (reuse → AUTH_012, family revoked) |
 | POST | `/identity/auth/logout` | public | — | Revoke the session family → `200 { data: { user_id } }` (idempotent) |
 | POST | `/identity/tokens/introspect` | service | — | Verify + denylist-check an access token → `200 { data: { active, sub?, jti?, token_use?, exp? } }` |
@@ -70,6 +71,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `SERVICE_001` | 404 | Service account not found |
 | `SERVICE_002` | 401 | Service account cannot authenticate (disabled) |
 | `SERVICE_003` | 409 | Service account name already taken |
+| `SERVICE_004` | 401 | Invalid client credentials (client-credentials grant; generic, no enumeration) |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -105,6 +107,15 @@ The `permission:<name>` route middleware is the guard primitive: it verifies the
 returns `403 AUTHZ_001` if the required permission is absent (`401 AUTH_010` if the token is
 missing or invalid). Revocation is not checked on this path — routine authorization trusts the
 short access TTL; high-value operations additionally introspect.
+
+## Service tokens (client credentials)
+Platform services authenticate to each other with their own rotatable credential rather than a
+shared secret. `POST /identity/service/token` takes `client_id` (the service account name) and
+`client_secret` and returns a short-lived RS256 token with `token_use=service`, `sub` = the service
+account id, and a `scopes` claim (array) carrying the account's granted scopes. There is no refresh
+token — a service simply re-authenticates when the token expires. Unknown client, wrong secret, and
+disabled account all fail identically with `401 SERVICE_004` (the secret is compared against a dummy
+hash when the account is absent, so timing does not reveal existence).
 
 ## Refresh & sessions
 `login` also issues a **rotating refresh token** — an opaque 256-bit secret returned once and
