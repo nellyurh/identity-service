@@ -20,6 +20,19 @@ return [
         'threads' => (int) env('ARGON_THREADS', 1),
     ],
 
+    // RS256 access-token signing. PEMs come from env / Secrets Manager and are NEVER
+    // committed. Generate a dev keypair locally (see docs/RUNBOOK.md) and export
+    // IDENTITY_JWT_PRIVATE_KEY / IDENTITY_JWT_PUBLIC_KEY. Rotation (multiple kids) lands
+    // with the signing_keys table.
+    'jwt' => [
+        'issuer' => env('IDENTITY_JWT_ISSUER', 'unero.identity-service'),
+        'audience' => env('IDENTITY_JWT_AUDIENCE', 'unero-internal'),
+        'access_ttl' => (int) env('IDENTITY_JWT_ACCESS_TTL', 900), // 15 minutes
+        'kid' => (string) env('IDENTITY_JWT_KID', 'dev'),
+        'private_key' => (string) env('IDENTITY_JWT_PRIVATE_KEY', ''),
+        'public_key' => (string) env('IDENTITY_JWT_PUBLIC_KEY', ''),
+    ],
+
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).
     'platform' => [
         'terraform' => env('UNERO_PLATFORM_TERRAFORM', 'https://github.com/nellyurh/unero-platform-terraform'),

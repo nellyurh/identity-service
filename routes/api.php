@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 use App\Interfaces\Http\Controller\AuthController;
 use App\Interfaces\Http\Controller\HealthController;
+use App\Interfaces\Http\Controller\JwksController;
 use App\Interfaces\Http\Controller\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/healthz', [HealthController::class, 'live']);
 Route::get('/readyz', [HealthController::class, 'ready']);
+
+// Public JWKS — other services fetch this to verify access tokens offline.
+Route::get('/.well-known/jwks.json', [JwksController::class, 'index']);
 
 Route::prefix('identity')->group(function (): void {
     // Public authentication surface.

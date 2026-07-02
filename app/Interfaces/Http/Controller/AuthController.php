@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Http\Controller;
 
-use App\Application\User\AuthenticateUser;
-use App\Application\User\Command\AuthenticateUserCommand;
+use App\Application\Auth\Command\LoginCommand;
+use App\Application\Auth\LoginUser;
 use App\Application\User\Command\RegisterUserCommand;
 use App\Application\User\RegisterUser;
 use App\Interfaces\Http\Request\LoginRequest;
@@ -15,8 +15,8 @@ use Illuminate\Http\Request;
 
 /**
  * Public authentication surface. Registration is idempotent; login verifies credentials and
- * returns the principal (access/refresh tokens are issued once the auth milestone lands).
- * Thin by design: parse -> command -> application service -> typed result -> JSON.
+ * returns the principal plus a short-lived RS256 access token. Thin by design:
+ * parse -> command -> application service -> typed result -> JSON.
  */
 final class AuthController
 {
@@ -36,18 +36,21 @@ final class AuthController
         return response()->json(['data' => ['user_id' => $result->userId]], 201);
     }
 
-    public function login(LoginRequest $request, AuthenticateUser $handler): JsonResponse
+    public function login(LoginRequest $request, LoginUser $handler): JsonResponse
     {
-        $principal = $handler->handle(new AuthenticateUserCommand(
+        $result = $handler->handle(new LoginCommand(
             email: (string) $request->string('email'),
             password: (string) $request->string('password'),
             requestId: (string) $request->attributes->get('request_id'),
         ));
 
         return response()->json(['data' => [
-            'user_id' => $principal->userId,
-            'status' => $principal->status,
-            'email_verified' => $principal->emailVerified,
+            'user_id' => $result->userId,
+            'status' => $result->status,
+            'email_verified' => $result->emailVerified,
+            'access_token' => $result->accessToken,
+            'token_type' => $result->tokenType,
+            'expires_in' => $result->expiresIn,
         ]]);
     }
 

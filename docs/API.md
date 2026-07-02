@@ -19,7 +19,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | Method | Path | Auth | Idempotent | Purpose |
 |---|---|---|---|---|
 | POST | `/identity/register` | public | ✅ | Register a user → `201 { data: { user_id } }` |
-| POST | `/identity/login` | public | — | Verify credentials → `200 { data: Principal }` (tokens land in the JWT milestone) |
+| POST | `/identity/login` | public | — | Verify credentials → `200 { data: Principal + access_token, token_type, expires_in }` |
+| GET | `/.well-known/jwks.json` | public | — | Public RS256 verification keys (JWKS) |
 | POST | `/identity/change-password` | actor | ✅ | Self-service password change → `200 { data: UserProfile }` |
 | GET | `/identity/users/{id}` | actor | — | Fetch a user → `200 { data: UserProfile }` |
 | GET | `/identity/users?email=\|username=` | actor | — | Look up a user → `200 { data: UserProfile }` |
@@ -39,8 +40,23 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `USER_005` | 409 | Username already taken |
 | `IDEMPOTENCY_001` | 400 | Idempotency-Key header missing on a mutation |
 | `IDEMPOTENCY_002` | 409 | Idempotency-Key reused with a different body |
+| `AUTH_010` | 401 | Access token invalid (signature, expiry, audience, malformed) |
+
+## Tokens
+`login` issues a short-lived **RS256 access token** (15 min default), signed with the current
+key; other services verify offline against `/.well-known/jwks.json`. The algorithm is pinned to
+RS256 and verification uses the public key only. Signing PEMs come from
+`IDENTITY_JWT_PRIVATE_KEY` / `IDENTITY_JWT_PUBLIC_KEY` (env / Secrets Manager) — never committed.
+
+Generate a dev keypair:
+```
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out jwt-private.pem
+openssl rsa -in jwt-private.pem -pubout -out jwt-public.pem
+export IDENTITY_JWT_PRIVATE_KEY="$(cat jwt-private.pem)"
+export IDENTITY_JWT_PUBLIC_KEY="$(cat jwt-public.pem)"
+```
 
 ## Not yet issued
-`login` returns the principal only. Access/refresh tokens, JWKS, sessions, MFA, email
-verification, and password reset arrive in later milestones; `POST /identity/register` is the
-only write that currently emits a domain event (`UserRegistered`).
+Refresh tokens, rotation/reuse detection, revocation/blacklist, `/auth/refresh`,
+`/auth/logout`, token introspection, sessions, key rotation (`signing_keys`), and the
+`TokenIssued`/`TokenRevoked` events arrive in the next slice.

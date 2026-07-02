@@ -21,6 +21,22 @@ paths:
       responses:
         "200": { description: ready }
         "503": { description: not ready }
+  /.well-known/jwks.json:
+    get:
+      summary: JSON Web Key Set (public verification keys)
+      description: Public RS256 keys other services fetch to verify access tokens offline.
+      responses:
+        "200":
+          description: key set
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items: { $ref: "#/components/schemas/Jwk" }
 
   /identity/register:
     post:
@@ -72,7 +88,7 @@ paths:
                 type: object
                 required: [data]
                 properties:
-                  data: { $ref: "#/components/schemas/Principal" }
+                  data: { $ref: "#/components/schemas/LoginData" }
         "401": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
 
@@ -253,6 +269,25 @@ components:
         user_id: { $ref: "#/components/schemas/Ulid" }
         status: { type: string, enum: [active, disabled, deleted] }
         email_verified: { type: boolean }
+    LoginData:
+      allOf:
+        - $ref: "#/components/schemas/Principal"
+        - type: object
+          required: [access_token, token_type, expires_in]
+          properties:
+            access_token: { type: string, description: RS256 JWT }
+            token_type: { type: string, enum: [Bearer] }
+            expires_in: { type: integer, description: seconds }
+    Jwk:
+      type: object
+      required: [kty, use, alg, kid, n, e]
+      properties:
+        kty: { type: string, enum: [RSA] }
+        use: { type: string, enum: [sig] }
+        alg: { type: string, enum: [RS256] }
+        kid: { type: string }
+        n: { type: string }
+        e: { type: string }
     UserProfile:
       type: object
       required: [user_id, email, username, status, email_verified, created_at, updated_at]
