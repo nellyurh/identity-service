@@ -27,6 +27,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | POST | `/identity/change-password` | actor | ✅ | Self-service password change → `200 { data: UserProfile }` |
 | GET | `/identity/users/{id}` | actor | — | Fetch a user → `200 { data: UserProfile }` |
 | GET | `/identity/users?email=\|username=` | actor | — | Look up a user → `200 { data: UserProfile }` |
+| GET | `/identity/permissions` | actor | — | List the permission catalog → `200 { data: [PermissionView] }` |
+| POST | `/identity/permissions` | actor | ✅ | Define a (non-system) permission → `201 { data: PermissionView }` |
 | POST | `/identity/users/{id}/disable` | actor | ✅ | Disable → `200 { data: UserProfile }` |
 | POST | `/identity/users/{id}/enable` | actor | ✅ | Re-enable → `200 { data: UserProfile }` |
 | DELETE | `/identity/users/{id}` | actor | ✅ | Soft-delete → `200 { data: UserProfile }` |
@@ -46,6 +48,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `AUTH_010` | 401 | Access token invalid (signature, expiry, audience, malformed) |
 | `AUTH_011` | 401 | Refresh token invalid (unknown, revoked, or expired) |
 | `AUTH_012` | 401 | Refresh token reuse detected — the session family was revoked |
+| `PERMISSION_001` | 404 | Permission not found |
+| `PERMISSION_002` | 409 | Permission already exists |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current

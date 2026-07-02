@@ -177,6 +177,51 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
 
+  /identity/permissions:
+    get:
+      summary: List the permission catalog
+      parameters:
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+      responses:
+        "200":
+          description: catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/PermissionView" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Define a permission
+      description: Adds a non-system permission (`resource.action`). System permissions are seeded, not defined here. Idempotent.
+      parameters:
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/DefinePermissionRequest" }
+      responses:
+        "201":
+          description: defined
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/PermissionView" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
   /identity/change-password:
     post:
       summary: Change own password (self-service)
@@ -389,6 +434,22 @@ components:
       required: [token]
       properties:
         token: { type: string, description: the access token (JWT) to introspect }
+    PermissionView:
+      type: object
+      required: [id, name, resource, action, is_system]
+      properties:
+        id: { $ref: "#/components/schemas/Ulid" }
+        name: { type: string, example: user.create }
+        resource: { type: string, example: user }
+        action: { type: string, example: create }
+        description: { type: string, nullable: true }
+        is_system: { type: boolean }
+    DefinePermissionRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, pattern: "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$", example: billing.refund }
+        description: { type: string, nullable: true }
     IntrospectionData:
       type: object
       required: [active]

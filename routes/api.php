@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Interfaces\Http\Controller\AuthController;
 use App\Interfaces\Http\Controller\HealthController;
 use App\Interfaces\Http\Controller\JwksController;
+use App\Interfaces\Http\Controller\PermissionController;
 use App\Interfaces\Http\Controller\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,8 +32,12 @@ Route::prefix('identity')->group(function (): void {
         Route::get('users/{id}', [UserController::class, 'show'])->whereUlid('id');
         Route::get('users', [UserController::class, 'lookup']);
 
+        // Permission catalog (RBAC reference data).
+        Route::get('permissions', [PermissionController::class, 'index']);
+
         // Mutations are idempotent.
         Route::middleware('idempotency')->group(function (): void {
+            Route::post('permissions', [PermissionController::class, 'store']);
             Route::post('change-password', [UserController::class, 'changePassword']);
             Route::post('users/{id}/disable', [UserController::class, 'disable'])->whereUlid('id');
             Route::post('users/{id}/enable', [UserController::class, 'enable'])->whereUlid('id');
