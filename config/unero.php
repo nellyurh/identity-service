@@ -57,6 +57,13 @@ return [
         'ttl' => (int) env('IDENTITY_PASSWORD_RESET_TTL', 3600), // 1 hour
     ],
 
+    'mfa' => [
+        'issuer' => (string) env('IDENTITY_MFA_ISSUER', 'Unero'),
+        'period' => (int) env('IDENTITY_MFA_PERIOD', 30),
+        'digits' => (int) env('IDENTITY_MFA_DIGITS', 6),
+        'window' => (int) env('IDENTITY_MFA_WINDOW', 1), // +/- steps of clock-skew tolerance
+    ],
+
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).
     'platform' => [
         'terraform' => env('UNERO_PLATFORM_TERRAFORM', 'https://github.com/nellyurh/unero-platform-terraform'),

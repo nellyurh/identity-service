@@ -21,6 +21,7 @@ use App\Application\Port\TokenBlacklist;
 use App\Application\Port\TokenGenerator;
 use App\Application\Port\TokenIssuer;
 use App\Application\Port\TokenVerifier;
+use App\Application\Port\TotpProvider;
 use App\Application\Port\TransactionManager;
 use App\Application\User\AuthenticateUser;
 use App\Domain\Identity\ApiKey\Repository\ApiKeyRepository;
@@ -35,6 +36,7 @@ use App\Infrastructure\ApiKey\RandomApiKeyGenerator;
 use App\Infrastructure\Audit\DatabaseAuditWriter;
 use App\Infrastructure\Authorization\EloquentAuthorizationResolver;
 use App\Infrastructure\Clock\SystemClock;
+use App\Infrastructure\Mfa\Rfc6238TotpProvider;
 use App\Infrastructure\Outbox\EventBridgePublisher;
 use App\Infrastructure\Persistence\Repository\EloquentApiKeyRepository;
 use App\Infrastructure\Persistence\Repository\EloquentEmailVerificationTokenRepository;
@@ -233,6 +235,13 @@ final class DomainServiceProvider extends ServiceProvider
                 $app->make(TransactionManager::class),
                 $reset['ttl'],
             );
+        });
+
+        $this->app->bind(TotpProvider::class, static function (Application $app): TotpProvider {
+            /** @var array{issuer:string,period:int,digits:int,window:int} $mfa */
+            $mfa = config('unero.mfa');
+
+            return new Rfc6238TotpProvider($mfa['issuer'], $mfa['period'], $mfa['digits'], $mfa['window']);
         });
 
         $this->app->singleton(EventBridgePublisher::class, static fn (): EventBridgePublisher => new EventBridgePublisher(
