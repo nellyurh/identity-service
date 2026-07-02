@@ -76,6 +76,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `SERVICE_003` | 409 | Service account name already taken |
 | `SERVICE_004` | 401 | Invalid client credentials (client-credentials grant; generic, no enumeration) |
 | `APIKEY_001` | 404 | API key not found |
+| `APIKEY_002` | 403 | API key lacks the scope required by the endpoint |
+| `APIKEY_003` | 401 | Invalid API key (missing/malformed/unknown/expired/revoked; generic, no enumeration) |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -127,8 +129,16 @@ key is `unero_<env>_<prefix>.<secret>`: the `prefix` is public and uniquely inde
 a leaked key is scannable by prefix), while only the SHA-256 hash of the `<secret>` is stored. The
 full key is shown **once** at creation (`data.key`) and never again. Keys carry scopes and an
 optional `expires_at`, record a throttled `last_used_at`, and can be revoked (immediate, permanent).
-Creation validates that the owner exists (`USER_001` / `SERVICE_001` otherwise). Per-request
-authentication by presented key lands with the API-key middleware (next milestone).
+Creation validates that the owner exists (`USER_001` / `SERVICE_001` otherwise).
+
+**Authenticating with a key.** The `apikey` middleware guards an endpoint:
+`Authorization: ApiKey unero_<env>_<prefix>.<secret>`. It looks the key up by prefix (O(1)),
+verifies the secret constant-time, and rejects missing/malformed/unknown/expired/revoked keys
+identically with `401 APIKEY_003` (no enumeration). Applied as `apikey:<scope>`, it additionally
+requires that scope, returning `403 APIKEY_002` if absent. On success it advances `last_used_at`
+(throttled by `IDENTITY_API_KEY_TOUCH_THROTTLE`, default 1h) and records the acting principal
+(`type=api_key`). The prefix is public by design, so lookup is not treated as sensitive; the secret
+comparison is the constant-time gate.
 
 ## Refresh & sessions
 `login` also issues a **rotating refresh token** — an opaque 256-bit secret returned once and

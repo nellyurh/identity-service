@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Domain\Shared\Exception\DomainException;
+use App\Interfaces\Http\Middleware\ApiKeyAuthenticate;
 use App\Interfaces\Http\Middleware\AuditContext;
 use App\Interfaces\Http\Middleware\AuthenticateService;
 use App\Interfaces\Http\Middleware\IdempotencyMiddleware;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'auth.service' => AuthenticateService::class,
             'idempotency' => IdempotencyMiddleware::class,
             'permission' => RequirePermission::class,
+            'apikey' => ApiKeyAuthenticate::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
