@@ -19,7 +19,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | Method | Path | Auth | Idempotent | Purpose |
 |---|---|---|---|---|
 | POST | `/identity/register` | public | ✅ | Register a user → `201 { data: { user_id } }` |
-| POST | `/identity/login` | public | — | Verify credentials → `200 { data: Principal + access_token, refresh_token, token_type, expires_in, refresh_expires_in }` |
+| POST | `/identity/login` | public | — | Verify credentials → tokens, **or** `200 { data: mfa_required, challenge_token, expires_in }` if MFA is active |
+| POST | `/identity/login/mfa` | public | — | Complete MFA login → `200 { data: Principal + tokens }` |
 | POST | `/identity/service/token` | public | — | Client-credentials grant → `200 { data: access_token, token_type, expires_in, scope }` (service token) |
 | POST | `/identity/email/verify` | public | — | Verify email with a token → `200 { data: user_id, verified }` |
 | POST | `/identity/auth/password/reset-request` | public | — | Start a reset → `202 { data: status }` (always, no enumeration) |
@@ -93,6 +94,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `MFA_001` | 409 | MFA is already enabled for this user |
 | `MFA_002` | 422 | TOTP verification code is incorrect |
 | `MFA_003` | 404 | No pending MFA enrollment to confirm |
+| `MFA_004` | 401 | MFA challenge is invalid, used, or expired |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -174,8 +176,16 @@ hashed — the server must recompute codes to verify them. Enrolling when MFA is
 
 `POST /users/{id}/mfa/totp/confirm {code}` verifies the code (RFC 6238, ±1 step of skew) against the
 decrypted secret and, on success, activates the credential and emits `MFAEnabled`. No pending
-enrollment → `404 MFA_003`; wrong code → `422 MFA_002`. Using this factor as a second step at login,
-and disabling it, land in later slices (2H-c2 / 2H-c3).
+enrollment → `404 MFA_003`; wrong code → `422 MFA_002`.
+
+**At login.** When a user has an active TOTP credential, `POST /login` verifies the password and then,
+instead of tokens, returns `{ mfa_required: true, challenge_token, expires_in }`. The `challenge_token`
+is opaque, single-use, short-lived (`IDENTITY_MFA_CHALLENGE_TTL`, default 5 min), and stored only as a
+hash — being opaque it can never be mistaken for an access token. The client completes login with
+`POST /login/mfa { challenge_token, code }`: the code is verified against the active credential, the
+challenge is consumed, and a normal session (access + refresh) is issued via the same path as a direct
+login. Invalid/used/expired challenge → `401 MFA_004`; wrong code → `422 MFA_002`. (Per-attempt MFA
+lockout is deferred to the 2I hardening pass.)
 
 ## Service tokens (client credentials)
 Platform services authenticate to each other with their own rotatable credential rather than a

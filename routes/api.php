@@ -26,6 +26,7 @@ Route::prefix('identity')->group(function (): void {
     // token is itself single-use, so replay is defined by rotation, not by a client key.
     Route::post('register', [AuthController::class, 'register'])->middleware('idempotency');
     Route::post('login', [AuthController::class, 'login']);
+    Route::post('login/mfa', [AuthController::class, 'completeMfa']);
     Route::post('service/token', [AuthController::class, 'serviceToken']);
     Route::post('email/verify', [EmailVerificationController::class, 'verify']);
     Route::post('auth/password/reset-request', [PasswordResetController::class, 'requestReset']);

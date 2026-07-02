@@ -62,6 +62,8 @@ return [
         'period' => (int) env('IDENTITY_MFA_PERIOD', 30),
         'digits' => (int) env('IDENTITY_MFA_DIGITS', 6),
         'window' => (int) env('IDENTITY_MFA_WINDOW', 1), // +/- steps of clock-skew tolerance
+        // Lifetime (seconds) of the post-password MFA challenge before the user must log in again.
+        'challenge_ttl' => (int) env('IDENTITY_MFA_CHALLENGE_TTL', 300), // 5 minutes
     ],
 
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).

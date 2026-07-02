@@ -7,6 +7,7 @@ namespace App\Providers;
 use App\Application\ApiKey\CreateApiKey;
 use App\Application\ApiKey\RotateApiKey;
 use App\Application\Auth\IssueUserSession;
+use App\Application\Auth\LoginUser;
 use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
 use App\Application\EmailVerification\RequestEmailVerification;
@@ -24,8 +25,10 @@ use App\Application\Port\TokenIssuer;
 use App\Application\Port\TokenVerifier;
 use App\Application\Port\TotpProvider;
 use App\Application\Port\TransactionManager;
+use App\Application\User\AuthenticateUser;
 use App\Domain\Identity\ApiKey\Repository\ApiKeyRepository;
 use App\Domain\Identity\EmailVerification\Repository\EmailVerificationTokenRepository;
+use App\Domain\Identity\Mfa\Repository\MfaChallengeRepository;
 use App\Domain\Identity\Mfa\Repository\TotpCredentialRepository;
 use App\Domain\Identity\PasswordReset\Repository\PasswordResetRepository;
 use App\Domain\Identity\Permission\Repository\PermissionRepository;
@@ -42,6 +45,7 @@ use App\Infrastructure\Mfa\Rfc6238TotpProvider;
 use App\Infrastructure\Outbox\EventBridgePublisher;
 use App\Infrastructure\Persistence\Repository\EloquentApiKeyRepository;
 use App\Infrastructure\Persistence\Repository\EloquentEmailVerificationTokenRepository;
+use App\Infrastructure\Persistence\Repository\EloquentMfaChallengeRepository;
 use App\Infrastructure\Persistence\Repository\EloquentPasswordResetRepository;
 use App\Infrastructure\Persistence\Repository\EloquentPermissionRepository;
 use App\Infrastructure\Persistence\Repository\EloquentRefreshTokenRepository;
@@ -85,6 +89,7 @@ final class DomainServiceProvider extends ServiceProvider
         $this->app->bind(EmailVerificationTokenRepository::class, EloquentEmailVerificationTokenRepository::class);
         $this->app->bind(PasswordResetRepository::class, EloquentPasswordResetRepository::class);
         $this->app->bind(TotpCredentialRepository::class, EloquentTotpCredentialRepository::class);
+        $this->app->bind(MfaChallengeRepository::class, EloquentMfaChallengeRepository::class);
         $this->app->bind(SecretCipher::class, LaravelSecretCipher::class);
         $this->app->bind(RefreshTokenRepository::class, EloquentRefreshTokenRepository::class);
         $this->app->bind(TokenGenerator::class, RandomRefreshTokenGenerator::class);
@@ -143,6 +148,23 @@ final class DomainServiceProvider extends ServiceProvider
                 $app->make(AuditWriter::class),
                 $app->make(AuthorizationResolver::class),
                 $jwt['refresh_ttl'],
+            );
+        });
+
+        $this->app->bind(LoginUser::class, static function (Application $app): LoginUser {
+            /** @var array{challenge_ttl:int} $mfa */
+            $mfa = config('unero.mfa');
+
+            return new LoginUser(
+                $app->make(AuthenticateUser::class),
+                $app->make(IssueUserSession::class),
+                $app->make(TotpCredentialRepository::class),
+                $app->make(MfaChallengeRepository::class),
+                $app->make(TokenGenerator::class),
+                $app->make(AuditWriter::class),
+                $app->make(Clock::class),
+                $app->make(TransactionManager::class),
+                $mfa['challenge_ttl'],
             );
         });
 

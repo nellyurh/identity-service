@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Http\Controller;
 
+use App\Application\Auth\Command\CompleteMfaLoginCommand;
 use App\Application\Auth\Command\IntrospectCommand;
 use App\Application\Auth\Command\LoginCommand;
 use App\Application\Auth\Command\LogoutCommand;
 use App\Application\Auth\Command\RefreshCommand;
+use App\Application\Auth\CompleteMfaLogin;
 use App\Application\Auth\IntrospectToken;
 use App\Application\Auth\LoginUser;
 use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
+use App\Application\Auth\Result\LoginResult;
+use App\Application\Auth\Result\MfaChallengeIssued;
 use App\Application\ServiceAccount\Command\IssueServiceTokenCommand;
 use App\Application\ServiceAccount\IssueServiceToken;
 use App\Application\User\Command\RegisterUserCommand;
@@ -19,11 +23,13 @@ use App\Application\User\RegisterUser;
 use App\Interfaces\Http\Request\IntrospectRequest;
 use App\Interfaces\Http\Request\LoginRequest;
 use App\Interfaces\Http\Request\LogoutRequest;
+use App\Interfaces\Http\Request\MfaLoginRequest;
 use App\Interfaces\Http\Request\RefreshRequest;
 use App\Interfaces\Http\Request\RegisterRequest;
 use App\Interfaces\Http\Request\ServiceTokenRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use LogicException;
 
 /**
  * Public authentication surface. Registration is idempotent; login verifies credentials and
@@ -51,13 +57,44 @@ final class AuthController
 
     public function login(LoginRequest $request, LoginUser $handler): JsonResponse
     {
-        $result = $handler->handle(new LoginCommand(
+        $outcome = $handler->handle(new LoginCommand(
             email: (string) $request->string('email'),
             password: (string) $request->string('password'),
             requestId: (string) $request->attributes->get('request_id'),
         ));
 
-        return response()->json(['data' => [
+        $challenge = $outcome->challenge;
+        if ($challenge instanceof MfaChallengeIssued) {
+            return response()->json(['data' => [
+                'mfa_required' => true,
+                'challenge_token' => $challenge->challengeToken,
+                'expires_in' => $challenge->expiresIn,
+            ]]);
+        }
+
+        $session = $outcome->session;
+        if (! $session instanceof LoginResult) {
+            throw new LogicException('Login outcome had neither a session nor a challenge.');
+        }
+
+        return response()->json(['data' => $this->sessionData($session)]);
+    }
+
+    public function completeMfa(MfaLoginRequest $request, CompleteMfaLogin $handler): JsonResponse
+    {
+        $result = $handler->handle(new CompleteMfaLoginCommand(
+            challengeToken: (string) $request->string('challenge_token'),
+            code: (string) $request->string('code'),
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        return response()->json(['data' => $this->sessionData($result)]);
+    }
+
+    /** @return array<string,mixed> */
+    private function sessionData(LoginResult $result): array
+    {
+        return [
             'user_id' => $result->userId,
             'status' => $result->status,
             'email_verified' => $result->emailVerified,
@@ -66,7 +103,7 @@ final class AuthController
             'expires_in' => $result->expiresIn,
             'refresh_token' => $result->refreshToken,
             'refresh_expires_in' => $result->refreshExpiresIn,
-        ]]);
+        ];
     }
 
     public function refresh(RefreshRequest $request, RefreshTokens $handler): JsonResponse

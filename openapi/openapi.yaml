@@ -81,6 +81,31 @@ paths:
             schema: { $ref: "#/components/schemas/LoginRequest" }
       responses:
         "200":
+          description: authenticated, or an MFA challenge if the user has a second factor
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: "#/components/schemas/LoginData"
+                      - $ref: "#/components/schemas/MfaChallengeData"
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/login/mfa:
+    post:
+      summary: Complete an MFA login
+      description: Exchanges a challenge_token + TOTP code for a session. Invalid/used/expired challenge -> MFA_004; wrong code -> MFA_002.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MfaLoginRequest" }
+      responses:
+        "200":
           description: authenticated
           content:
             application/json:
@@ -1159,6 +1184,19 @@ components:
       required: [code]
       properties:
         code: { type: string, pattern: "^[0-9]{6}$", description: the 6-digit TOTP code }
+    MfaChallengeData:
+      type: object
+      required: [mfa_required, challenge_token, expires_in]
+      properties:
+        mfa_required: { type: boolean, enum: [true] }
+        challenge_token: { type: string, description: opaque single-use challenge, shown once }
+        expires_in: { type: integer, example: 300 }
+    MfaLoginRequest:
+      type: object
+      required: [challenge_token, code]
+      properties:
+        challenge_token: { type: string }
+        code: { type: string, pattern: "^[0-9]{6}$" }
     ServiceTokenData:
       type: object
       required: [access_token, token_type, expires_in, scope]
