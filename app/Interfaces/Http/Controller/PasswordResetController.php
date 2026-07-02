@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Http\Controller;
 
+use App\Application\PasswordReset\Command\CompletePasswordResetCommand;
 use App\Application\PasswordReset\Command\MaterializePasswordResetDeliveryCommand;
 use App\Application\PasswordReset\Command\RequestPasswordResetCommand;
+use App\Application\PasswordReset\CompletePasswordReset;
 use App\Application\PasswordReset\MaterializePasswordResetDelivery;
 use App\Application\PasswordReset\RequestPasswordReset;
 use App\Interfaces\Http\Request\RequestPasswordResetRequest;
+use App\Interfaces\Http\Request\ResetPasswordRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -27,6 +30,17 @@ final class PasswordResetController
         ));
 
         return response()->json(['data' => ['status' => 'accepted']], 202);
+    }
+
+    public function reset(ResetPasswordRequest $request, CompletePasswordReset $handler): JsonResponse
+    {
+        $result = $handler->handle(new CompletePasswordResetCommand(
+            token: (string) $request->string('token'),
+            newPassword: (string) $request->string('new_password'),
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        return response()->json(['data' => ['user_id' => $result->userId, 'reset' => $result->reset]]);
     }
 
     public function materialize(string $ref, Request $request, MaterializePasswordResetDelivery $handler): JsonResponse

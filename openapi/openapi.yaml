@@ -170,6 +170,33 @@ paths:
                       status: { type: string, example: accepted }
         "422": { $ref: "#/components/responses/Error" }
 
+  /identity/auth/password/reset:
+    post:
+      summary: Complete a password reset
+      description: Public — the token is the proof. Redeems the token, sets the new password, and revokes all of the user's refresh families. Unknown/used/expired tokens return RESET_002.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ResetPasswordRequest" }
+      responses:
+        "200":
+          description: password reset
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [user_id, reset]
+                    properties:
+                      user_id: { $ref: "#/components/schemas/Ulid" }
+                      reset: { type: boolean }
+        "400": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
   /identity/internal/password-reset/deliveries/{ref}/materialize:
     post:
       summary: Materialise a reset delivery (internal callback)
@@ -1056,6 +1083,12 @@ components:
       required: [email]
       properties:
         email: { type: string, format: email }
+    ResetPasswordRequest:
+      type: object
+      required: [token, new_password]
+      properties:
+        token: { type: string, description: the raw reset token }
+        new_password: { type: string, minLength: 8, maxLength: 4096 }
     ServiceTokenData:
       type: object
       required: [access_token, token_type, expires_in, scope]

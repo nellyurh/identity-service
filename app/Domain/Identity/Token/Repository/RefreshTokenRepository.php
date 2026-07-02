@@ -8,6 +8,7 @@ use App\Domain\Identity\Token\RefreshToken;
 use App\Domain\Identity\Token\RevocationReason;
 use App\Domain\Identity\Token\ValueObject\FamilyId;
 use App\Domain\Identity\Token\ValueObject\RefreshTokenId;
+use App\Domain\Identity\User\ValueObject\UserId;
 use DateTimeImmutable;
 
 interface RefreshTokenRepository
@@ -32,6 +33,9 @@ interface RefreshTokenRepository
      * are skipped and no duplicate event is emitted when nothing changes.
      */
     public function revokeFamily(FamilyId $familyId, RevocationReason $reason, DateTimeImmutable $now): void;
+
+    /** Revoke every still-active refresh family for a user (e.g. on password reset), emitting one TokenRevoked per family. */
+    public function revokeAllForUser(UserId $userId, RevocationReason $reason, DateTimeImmutable $now): void;
 
     public function nextIdentity(): RefreshTokenId;
 

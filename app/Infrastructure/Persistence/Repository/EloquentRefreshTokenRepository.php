@@ -110,6 +110,42 @@ final readonly class EloquentRefreshTokenRepository implements RefreshTokenRepos
         );
     }
 
+    public function revokeAllForUser(UserId $userId, RevocationReason $reason, DateTimeImmutable $now): void
+    {
+        $familyIds = RefreshTokenModel::query()
+            ->where('user_id', $userId->value)
+            ->whereNull('revoked_at')
+            ->distinct()
+            ->pluck('family_id');
+
+        if ($familyIds->isEmpty()) {
+            return;
+        }
+
+        RefreshTokenModel::query()
+            ->where('user_id', $userId->value)
+            ->whereNull('revoked_at')
+            ->update(['revoked_at' => $now]);
+
+        foreach ($familyIds as $familyId) {
+            $event = new TokenRevoked(
+                userId: $userId->value,
+                familyId: (string) $familyId,
+                reason: $reason->value,
+                occurredAt: $now->format(DATE_RFC3339),
+            );
+
+            $this->outbox->write(
+                $event->eventType(),
+                self::EVENT_VERSION,
+                self::SCHEMA_VERSION,
+                'RefreshToken',
+                (string) $familyId,
+                $event->payload(),
+            );
+        }
+    }
+
     public function nextIdentity(): RefreshTokenId
     {
         return new RefreshTokenId((string) new Ulid);

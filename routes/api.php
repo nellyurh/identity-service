@@ -28,6 +28,7 @@ Route::prefix('identity')->group(function (): void {
     Route::post('service/token', [AuthController::class, 'serviceToken']);
     Route::post('email/verify', [EmailVerificationController::class, 'verify']);
     Route::post('auth/password/reset-request', [PasswordResetController::class, 'requestReset']);
+    Route::post('auth/password/reset', [PasswordResetController::class, 'reset']);
     Route::post('auth/refresh', [AuthController::class, 'refresh']);
     Route::post('auth/logout', [AuthController::class, 'logout']);
 
