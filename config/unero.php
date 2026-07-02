@@ -46,6 +46,11 @@ return [
         'rotation_grace' => (int) env('IDENTITY_API_KEY_ROTATION_GRACE', 86400), // 24 hours
     ],
 
+    'email_verification' => [
+        // Lifetime of a single-use email verification token, in seconds.
+        'ttl' => (int) env('IDENTITY_EMAIL_VERIFICATION_TTL', 86400), // 24 hours
+    ],
+
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).
     'platform' => [
         'terraform' => env('UNERO_PLATFORM_TERRAFORM', 'https://github.com/nellyurh/unero-platform-terraform'),

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Interfaces\Http\Controller\ApiKeyController;
 use App\Interfaces\Http\Controller\AuthController;
+use App\Interfaces\Http\Controller\EmailVerificationController;
 use App\Interfaces\Http\Controller\HealthController;
 use App\Interfaces\Http\Controller\JwksController;
 use App\Interfaces\Http\Controller\PermissionController;
@@ -24,6 +25,7 @@ Route::prefix('identity')->group(function (): void {
     Route::post('register', [AuthController::class, 'register'])->middleware('idempotency');
     Route::post('login', [AuthController::class, 'login']);
     Route::post('service/token', [AuthController::class, 'serviceToken']);
+    Route::post('email/verify', [EmailVerificationController::class, 'verify']);
     Route::post('auth/refresh', [AuthController::class, 'refresh']);
     Route::post('auth/logout', [AuthController::class, 'logout']);
 
@@ -72,6 +74,7 @@ Route::prefix('identity')->group(function (): void {
             Route::post('api-keys', [ApiKeyController::class, 'store']);
             Route::post('api-keys/{id}/rotate', [ApiKeyController::class, 'rotate'])->whereUlid('id');
             Route::delete('api-keys/{id}', [ApiKeyController::class, 'destroy'])->whereUlid('id');
+            Route::post('users/{id}/email/verification-request', [EmailVerificationController::class, 'request'])->whereUlid('id');
         });
     });
 });

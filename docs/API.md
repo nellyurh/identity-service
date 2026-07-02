@@ -21,6 +21,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | POST | `/identity/register` | public | ✅ | Register a user → `201 { data: { user_id } }` |
 | POST | `/identity/login` | public | — | Verify credentials → `200 { data: Principal + access_token, refresh_token, token_type, expires_in, refresh_expires_in }` |
 | POST | `/identity/service/token` | public | — | Client-credentials grant → `200 { data: access_token, token_type, expires_in, scope }` (service token) |
+| POST | `/identity/email/verify` | public | — | Verify email with a token → `200 { data: user_id, verified }` |
+| POST | `/identity/users/{id}/email/verification-request` | actor | ✅ | Issue a verification token → `200 { data: token, expires_at }` (token shown once) |
 | POST | `/identity/auth/refresh` | public | — | Rotate the token pair → `200 { data: TokenPair }` (reuse → AUTH_012, family revoked) |
 | POST | `/identity/auth/logout` | public | — | Revoke the session family → `200 { data: { user_id } }` (idempotent) |
 | POST | `/identity/tokens/introspect` | service | — | Verify + denylist-check an access token → `200 { data: { active, sub?, jti?, token_use?, exp? } }` |
@@ -80,6 +82,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `APIKEY_002` | 403 | API key lacks the scope required by the endpoint |
 | `APIKEY_003` | 401 | Invalid API key (missing/malformed/unknown/expired/revoked; generic, no enumeration) |
 | `APIKEY_004` | 409 | A revoked API key cannot be rotated |
+| `VERIFICATION_001` | 400 | Email verification token is invalid, used, or expired |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -115,6 +118,23 @@ The `permission:<name>` route middleware is the guard primitive: it verifies the
 returns `403 AUTHZ_001` if the required permission is absent (`401 AUTH_010` if the token is
 missing or invalid). Revocation is not checked on this path — routine authorization trusts the
 short access TTL; high-value operations additionally introspect.
+
+## Email verification
+Requesting verification (`POST /users/{id}/email/verification-request`, gateway-authenticated) mints a
+single-use, hashed, TTL-bound token (`IDENTITY_EMAIL_VERIFICATION_TTL`, default 24h), invalidates any
+outstanding token for that user, and returns the **raw** token once to the trusted caller (the
+notification orchestrator) to email. The raw token never enters an event or the outbox — only its
+SHA-256 hash is stored. Requesting for an already-verified user is `409 USER_003`.
+
+Verifying (`POST /email/verify {token}`, public — the token is the proof) looks the token up by hash,
+marks the user's email verified (emitting `EmailVerified`), and burns the token. Unknown/used/expired
+tokens fail generically with `400 VERIFICATION_001`. It's idempotent for an already-verified user (the
+token is consumed, no second event).
+
+> Delivery-channel decision (surfaced for ARB, ref. design open-question #4): verification uses a
+> **synchronous return-to-trusted-caller** model rather than putting the token in an event, honoring
+> "no plaintext tokens in event payloads." Password reset (2H-b) is event-driven with a 202/no-token
+> response for enumeration resistance, so its delivery bridge will need explicit confirmation.
 
 ## Service tokens (client credentials)
 Platform services authenticate to each other with their own rotatable credential rather than a

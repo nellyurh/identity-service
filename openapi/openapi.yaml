@@ -118,6 +118,33 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
 
+  /identity/email/verify:
+    post:
+      summary: Verify an email address with a token
+      description: Public — the token is the proof. Unknown/used/expired tokens return VERIFICATION_001.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VerifyEmailRequest" }
+      responses:
+        "200":
+          description: verified
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [user_id, verified]
+                    properties:
+                      user_id: { $ref: "#/components/schemas/Ulid" }
+                      verified: { type: boolean }
+        "400": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
   /identity/auth/refresh:
     post:
       summary: Rotate an access + refresh token pair
@@ -613,6 +640,37 @@ paths:
         "404": { $ref: "#/components/responses/Error" }
         "409": { $ref: "#/components/responses/Error" }
 
+  /identity/users/{id}/email/verification-request:
+    post:
+      summary: Issue an email verification token
+      description: Gateway-authenticated. Returns the raw token once for the caller to deliver by email. Already-verified users return USER_003.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: token issued (shown once)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [token, expires_at]
+                    properties:
+                      token: { type: string, description: raw verification token, shown once }
+                      expires_at: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
   /identity/change-password:
     post:
       summary: Change own password (self-service)
@@ -933,6 +991,11 @@ components:
         grant_type: { type: string, enum: [client_credentials] }
         client_id: { type: string, description: the service account name, example: wallet }
         client_secret: { type: string, description: the plaintext client secret }
+    VerifyEmailRequest:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, description: the raw email verification token }
     ServiceTokenData:
       type: object
       required: [access_token, token_type, expires_in, scope]
