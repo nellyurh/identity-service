@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Interfaces\Http\Controller\ApiKeyController;
 use App\Interfaces\Http\Controller\AuthController;
 use App\Interfaces\Http\Controller\HealthController;
 use App\Interfaces\Http\Controller\JwksController;
@@ -46,6 +47,9 @@ Route::prefix('identity')->group(function (): void {
         Route::get('service-accounts', [ServiceAccountController::class, 'index']);
         Route::get('service-accounts/{id}', [ServiceAccountController::class, 'show'])->whereUlid('id');
 
+        // API keys (long-lived programmatic credentials).
+        Route::get('api-keys', [ApiKeyController::class, 'index']);
+
         // Mutations are idempotent.
         Route::middleware('idempotency')->group(function (): void {
             Route::post('permissions', [PermissionController::class, 'store']);
@@ -65,6 +69,8 @@ Route::prefix('identity')->group(function (): void {
             Route::post('service-accounts', [ServiceAccountController::class, 'store']);
             Route::post('service-accounts/{id}/rotate', [ServiceAccountController::class, 'rotate'])->whereUlid('id');
             Route::post('service-accounts/{id}/disable', [ServiceAccountController::class, 'disable'])->whereUlid('id');
+            Route::post('api-keys', [ApiKeyController::class, 'store']);
+            Route::delete('api-keys/{id}', [ApiKeyController::class, 'destroy'])->whereUlid('id');
         });
     });
 });

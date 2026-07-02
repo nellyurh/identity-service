@@ -46,6 +46,9 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | POST | `/identity/service-accounts` | actor | ✅ | Create → `201 { data: ServiceAccountView + secret }` (secret shown once) |
 | POST | `/identity/service-accounts/{id}/rotate` | actor | ✅ | Rotate secret → `200 { data: ServiceAccountView + secret }` |
 | POST | `/identity/service-accounts/{id}/disable` | actor | ✅ | Disable → `200 { data: ServiceAccountView }` |
+| GET | `/identity/api-keys?owner_type=&owner_id=` | actor | — | List an owner's API keys → `200 { data: [ApiKeyView] }` (no secrets) |
+| POST | `/identity/api-keys` | actor | ✅ | Create → `201 { data: ApiKeyView + key }` (full key shown once) |
+| DELETE | `/identity/api-keys/{id}` | actor | ✅ | Revoke → `200 { data: ApiKeyView }` |
 
 ## Error codes (this surface)
 
@@ -72,6 +75,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `SERVICE_002` | 401 | Service account cannot authenticate (disabled) |
 | `SERVICE_003` | 409 | Service account name already taken |
 | `SERVICE_004` | 401 | Invalid client credentials (client-credentials grant; generic, no enumeration) |
+| `APIKEY_001` | 404 | API key not found |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -116,6 +120,15 @@ account id, and a `scopes` claim (array) carrying the account's granted scopes. 
 token — a service simply re-authenticates when the token expires. Unknown client, wrong secret, and
 disabled account all fail identically with `401 SERVICE_004` (the secret is compared against a dummy
 hash when the account is absent, so timing does not reveal existence).
+
+## API keys (programmatic access)
+Long-lived credentials for external/programmatic callers, owned by a user or a service account. The
+key is `unero_<env>_<prefix>.<secret>`: the `prefix` is public and uniquely indexed (O(1) lookup, and
+a leaked key is scannable by prefix), while only the SHA-256 hash of the `<secret>` is stored. The
+full key is shown **once** at creation (`data.key`) and never again. Keys carry scopes and an
+optional `expires_at`, record a throttled `last_used_at`, and can be revoked (immediate, permanent).
+Creation validates that the owner exists (`USER_001` / `SERVICE_001` otherwise). Per-request
+authentication by presented key lands with the API-key middleware (next milestone).
 
 ## Refresh & sessions
 `login` also issues a **rotating refresh token** — an opaque 256-bit secret returned once and

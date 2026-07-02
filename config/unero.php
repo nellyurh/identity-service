@@ -37,6 +37,13 @@ return [
         'verify_only_public_keys' => (string) env('IDENTITY_JWT_VERIFY_ONLY_PUBLIC_KEYS', ''),
     ],
 
+    'api_key' => [
+        // Environment label baked into keys: unero_<env>_<prefix>.<secret>.
+        'env' => (string) env('IDENTITY_API_KEY_ENV', 'live'),
+        // last_used_at is only rewritten when it is older than this many seconds (hot-key throttle).
+        'touch_throttle' => (int) env('IDENTITY_API_KEY_TOUCH_THROTTLE', 3600),
+    ],
+
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).
     'platform' => [
         'terraform' => env('UNERO_PLATFORM_TERRAFORM', 'https://github.com/nellyurh/unero-platform-terraform'),

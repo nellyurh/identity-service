@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
+use App\Application\ApiKey\CreateApiKey;
 use App\Application\Auth\LoginUser;
 use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
+use App\Application\Port\ApiKeyGenerator;
 use App\Application\Port\AuditWriter;
 use App\Application\Port\AuthorizationResolver;
 use App\Application\Port\Clock;
@@ -18,15 +20,18 @@ use App\Application\Port\TokenIssuer;
 use App\Application\Port\TokenVerifier;
 use App\Application\Port\TransactionManager;
 use App\Application\User\AuthenticateUser;
+use App\Domain\Identity\ApiKey\Repository\ApiKeyRepository;
 use App\Domain\Identity\Permission\Repository\PermissionRepository;
 use App\Domain\Identity\Role\Repository\RoleRepository;
 use App\Domain\Identity\ServiceAccount\Repository\ServiceAccountRepository;
 use App\Domain\Identity\Token\Repository\RefreshTokenRepository;
 use App\Domain\Identity\User\Repository\UserRepository;
+use App\Infrastructure\ApiKey\RandomApiKeyGenerator;
 use App\Infrastructure\Audit\DatabaseAuditWriter;
 use App\Infrastructure\Authorization\EloquentAuthorizationResolver;
 use App\Infrastructure\Clock\SystemClock;
 use App\Infrastructure\Outbox\EventBridgePublisher;
+use App\Infrastructure\Persistence\Repository\EloquentApiKeyRepository;
 use App\Infrastructure\Persistence\Repository\EloquentPermissionRepository;
 use App\Infrastructure\Persistence\Repository\EloquentRefreshTokenRepository;
 use App\Infrastructure\Persistence\Repository\EloquentRoleRepository;
@@ -63,6 +68,8 @@ final class DomainServiceProvider extends ServiceProvider
         $this->app->bind(RoleRepository::class, EloquentRoleRepository::class);
         $this->app->bind(AuthorizationResolver::class, EloquentAuthorizationResolver::class);
         $this->app->bind(ServiceAccountRepository::class, EloquentServiceAccountRepository::class);
+        $this->app->bind(ApiKeyRepository::class, EloquentApiKeyRepository::class);
+        $this->app->bind(ApiKeyGenerator::class, RandomApiKeyGenerator::class);
         $this->app->bind(RefreshTokenRepository::class, EloquentRefreshTokenRepository::class);
         $this->app->bind(TokenGenerator::class, RandomRefreshTokenGenerator::class);
         $this->app->bind(TokenBlacklist::class, CacheTokenBlacklist::class);
@@ -155,6 +162,22 @@ final class DomainServiceProvider extends ServiceProvider
                 $app->make(TransactionManager::class),
                 $app->make(TokenBlacklist::class),
                 $jwt['access_ttl'],
+            );
+        });
+
+        $this->app->bind(CreateApiKey::class, static function (Application $app): CreateApiKey {
+            /** @var array{env:string} $apiKey */
+            $apiKey = config('unero.api_key');
+
+            return new CreateApiKey(
+                $app->make(ApiKeyRepository::class),
+                $app->make(ApiKeyGenerator::class),
+                $app->make(UserRepository::class),
+                $app->make(ServiceAccountRepository::class),
+                $app->make(AuditWriter::class),
+                $app->make(Clock::class),
+                $app->make(TransactionManager::class),
+                $apiKey['env'],
             );
         });
 

@@ -494,6 +494,88 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /identity/api-keys:
+    get:
+      summary: List an owner's API keys
+      parameters:
+        - name: owner_type
+          in: query
+          required: true
+          schema: { type: string, enum: [user, service_account] }
+        - name: owner_id
+          in: query
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+      responses:
+        "200":
+          description: API key list (no secrets)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/ApiKeyView" } }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create an API key
+      description: Returns the full key once inside data.key. The owner (user or service account) must exist.
+      parameters:
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateApiKeyRequest" }
+      responses:
+        "201":
+          description: API key created (full key shown once)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/ApiKeyView"
+                      - type: object
+                        required: [key]
+                        properties:
+                          key: { type: string, description: full API key, shown once, example: "unero_live_ab12cd34ef56.<secret>" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/api-keys/{id}:
+    delete:
+      summary: Revoke an API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: revoked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/ApiKeyView" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /identity/change-password:
     post:
       summary: Change own password (self-service)
@@ -822,6 +904,34 @@ components:
         token_type: { type: string, example: Bearer }
         expires_in: { type: integer, example: 900 }
         scope: { type: string, description: space-delimited granted scopes, example: "wallet.credit wallet.debit" }
+    ApiKeyView:
+      type: object
+      required: [id, prefix, name, owner_type, owner_id, scopes, revoked, created_by, created_at, updated_at]
+      properties:
+        id: { $ref: "#/components/schemas/Ulid" }
+        prefix: { type: string, pattern: "^[a-z0-9]{6,32}$" }
+        name: { type: string }
+        owner_type: { type: string, enum: [user, service_account] }
+        owner_id: { $ref: "#/components/schemas/Ulid" }
+        scopes: { type: array, items: { type: string, example: wallet.read } }
+        expires_at: { type: string, format: date-time, nullable: true }
+        last_used_at: { type: string, format: date-time, nullable: true }
+        revoked_at: { type: string, format: date-time, nullable: true }
+        revoked: { type: boolean }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreateApiKeyRequest:
+      type: object
+      required: [name, owner_type, owner_id]
+      properties:
+        name: { type: string, maxLength: 255, example: CI deploy key }
+        owner_type: { type: string, enum: [user, service_account] }
+        owner_id: { $ref: "#/components/schemas/Ulid" }
+        scopes:
+          type: array
+          items: { type: string, pattern: "^[a-z][a-z0-9_]*[.:][a-z][a-z0-9_*]*$", example: wallet.read }
+        expires_at: { type: string, format: date-time, nullable: true }
     IntrospectionData:
       type: object
       required: [active]

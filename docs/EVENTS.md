@@ -37,12 +37,14 @@ Envelope: `event_id` (UUIDv7), `event_type` (PascalCase, business-intent), `even
 | `ServiceAccountCreated` | `service_account_id`, `name`, `scopes`, `occurred_at` | `events/ServiceAccountCreated.schema.json` |
 | `ServiceAccountCredentialRotated` | `service_account_id`, `occurred_at` | `events/ServiceAccountCredentialRotated.schema.json` |
 | `ServiceAccountDisabled` | `service_account_id`, `occurred_at` | `events/ServiceAccountDisabled.schema.json` |
+| `ApiKeyCreated` | `api_key_id`, `prefix`, `name`, `owner_type`, `owner_id`, `scopes`, `expires_at`, `created_by`, `occurred_at` | `events/ApiKeyCreated.schema.json` |
+| `ApiKeyRevoked` | `api_key_id`, `occurred_at` | `events/ApiKeyRevoked.schema.json` |
 
 `TokenIssued` fires on login (new family) and on each refresh rotation (same family). `TokenRevoked`
 is family-level and fires on logout, on refresh-token **reuse detection**, or when a security change
 invalidates sessions; `reason` is one of `logout | reuse_detected | password_change`.
 
-Planned (landing per milestone): `ApiKeyCreated`, `ApiKeyRevoked` (2G-c), `SessionRevoked`,
+Planned (landing per milestone): `ApiKeyRotated` (2G-d), `SessionRevoked`,
 `MFAEnabled`, `MFADisabled` (2H).
 
 Note: seeding the built-in roles emits `RoleCreated` and one `PermissionGranted` per seeded grant
