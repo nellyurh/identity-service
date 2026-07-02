@@ -6,6 +6,7 @@ use App\Interfaces\Http\Controller\AuthController;
 use App\Interfaces\Http\Controller\HealthController;
 use App\Interfaces\Http\Controller\JwksController;
 use App\Interfaces\Http\Controller\PermissionController;
+use App\Interfaces\Http\Controller\RoleController;
 use App\Interfaces\Http\Controller\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -35,9 +36,19 @@ Route::prefix('identity')->group(function (): void {
         // Permission catalog (RBAC reference data).
         Route::get('permissions', [PermissionController::class, 'index']);
 
+        // Roles (RBAC).
+        Route::get('roles', [RoleController::class, 'index']);
+        Route::get('roles/{id}', [RoleController::class, 'show'])->whereUlid('id');
+
         // Mutations are idempotent.
         Route::middleware('idempotency')->group(function (): void {
             Route::post('permissions', [PermissionController::class, 'store']);
+            Route::post('roles', [RoleController::class, 'store']);
+            Route::patch('roles/{id}', [RoleController::class, 'update'])->whereUlid('id');
+            Route::post('roles/{id}/permissions', [RoleController::class, 'grant'])->whereUlid('id');
+            Route::delete('roles/{id}/permissions/{permission}', [RoleController::class, 'revoke'])
+                ->whereUlid('id')
+                ->where('permission', '[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*');
             Route::post('change-password', [UserController::class, 'changePassword']);
             Route::post('users/{id}/disable', [UserController::class, 'disable'])->whereUlid('id');
             Route::post('users/{id}/enable', [UserController::class, 'enable'])->whereUlid('id');

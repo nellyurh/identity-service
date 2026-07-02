@@ -18,6 +18,7 @@ use App\Application\Port\TokenVerifier;
 use App\Application\Port\TransactionManager;
 use App\Application\User\AuthenticateUser;
 use App\Domain\Identity\Permission\Repository\PermissionRepository;
+use App\Domain\Identity\Role\Repository\RoleRepository;
 use App\Domain\Identity\Token\Repository\RefreshTokenRepository;
 use App\Domain\Identity\User\Repository\UserRepository;
 use App\Infrastructure\Audit\DatabaseAuditWriter;
@@ -25,6 +26,7 @@ use App\Infrastructure\Clock\SystemClock;
 use App\Infrastructure\Outbox\EventBridgePublisher;
 use App\Infrastructure\Persistence\Repository\EloquentPermissionRepository;
 use App\Infrastructure\Persistence\Repository\EloquentRefreshTokenRepository;
+use App\Infrastructure\Persistence\Repository\EloquentRoleRepository;
 use App\Infrastructure\Persistence\Repository\EloquentUserRepository;
 use App\Infrastructure\Security\ArgonPasswordHasher;
 use App\Infrastructure\Token\CacheTokenBlacklist;
@@ -54,6 +56,7 @@ final class DomainServiceProvider extends ServiceProvider
 
         $this->app->bind(UserRepository::class, EloquentUserRepository::class);
         $this->app->bind(PermissionRepository::class, EloquentPermissionRepository::class);
+        $this->app->bind(RoleRepository::class, EloquentRoleRepository::class);
         $this->app->bind(RefreshTokenRepository::class, EloquentRefreshTokenRepository::class);
         $this->app->bind(TokenGenerator::class, RandomRefreshTokenGenerator::class);
         $this->app->bind(TokenBlacklist::class, CacheTokenBlacklist::class);

@@ -222,6 +222,126 @@ paths:
         "409": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
 
+  /identity/roles:
+    get:
+      summary: List roles
+      parameters:
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+      responses:
+        "200":
+          description: roles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/RoleView" }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create a role
+      description: Creates a non-system role (snake_case name). System roles are seeded. Idempotent.
+      parameters:
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateRoleRequest" }
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/RoleView" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/roles/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { $ref: "#/components/schemas/Ulid" }
+      - $ref: "#/components/parameters/ActorId"
+      - $ref: "#/components/parameters/ActorType"
+    get:
+      summary: Get a role
+      responses:
+        "200": { $ref: "#/components/responses/Role" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    patch:
+      summary: Update a role (rename / re-describe)
+      description: PATCH semantics. Renaming a system role is rejected (ROLE_002). Idempotent.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateRoleRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/Role" }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/roles/{id}/permissions:
+    post:
+      summary: Grant a permission to a role
+      description: Idempotent. The permission must exist in the catalog (else PERMISSION_001).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/GrantPermissionRequest" }
+      responses:
+        "200": { $ref: "#/components/responses/Role" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/roles/{id}/permissions/{name}:
+    delete:
+      summary: Revoke a permission from a role
+      description: Idempotent. `name` is the permission's resource.action.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - name: name
+          in: path
+          required: true
+          schema: { type: string, example: user.read }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200": { $ref: "#/components/responses/Role" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /identity/change-password:
     post:
       summary: Change own password (self-service)
@@ -365,6 +485,15 @@ components:
             required: [data]
             properties:
               data: { $ref: "#/components/schemas/UserProfile" }
+    Role:
+      description: A role with its resolved permission names
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: "#/components/schemas/RoleView" }
   schemas:
     Ulid:
       type: string
@@ -450,6 +579,33 @@ components:
       properties:
         name: { type: string, pattern: "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$", example: billing.refund }
         description: { type: string, nullable: true }
+    RoleView:
+      type: object
+      required: [id, name, is_system, permissions]
+      properties:
+        id: { $ref: "#/components/schemas/Ulid" }
+        name: { type: string, example: platform_admin }
+        description: { type: string, nullable: true }
+        is_system: { type: boolean }
+        permissions:
+          type: array
+          items: { type: string, example: user.read }
+    CreateRoleRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, pattern: "^[a-z][a-z0-9_]*$", example: editor }
+        description: { type: string, nullable: true }
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name: { type: string, pattern: "^[a-z][a-z0-9_]*$" }
+        description: { type: string, nullable: true }
+    GrantPermissionRequest:
+      type: object
+      required: [permission]
+      properties:
+        permission: { type: string, pattern: "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$", example: user.read }
     IntrospectionData:
       type: object
       required: [active]

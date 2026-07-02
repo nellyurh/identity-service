@@ -29,6 +29,12 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | GET | `/identity/users?email=\|username=` | actor | — | Look up a user → `200 { data: UserProfile }` |
 | GET | `/identity/permissions` | actor | — | List the permission catalog → `200 { data: [PermissionView] }` |
 | POST | `/identity/permissions` | actor | ✅ | Define a (non-system) permission → `201 { data: PermissionView }` |
+| GET | `/identity/roles` | actor | — | List roles → `200 { data: [RoleView] }` |
+| GET | `/identity/roles/{id}` | actor | — | Read a role → `200 { data: RoleView }` |
+| POST | `/identity/roles` | actor | ✅ | Create a (non-system) role → `201 { data: RoleView }` |
+| PATCH | `/identity/roles/{id}` | actor | ✅ | Rename/re-describe (system names protected) → `200 { data: RoleView }` |
+| POST | `/identity/roles/{id}/permissions` | actor | ✅ | Grant a permission → `200 { data: RoleView }` |
+| DELETE | `/identity/roles/{id}/permissions/{name}` | actor | ✅ | Revoke a permission → `200 { data: RoleView }` |
 | POST | `/identity/users/{id}/disable` | actor | ✅ | Disable → `200 { data: UserProfile }` |
 | POST | `/identity/users/{id}/enable` | actor | ✅ | Re-enable → `200 { data: UserProfile }` |
 | DELETE | `/identity/users/{id}` | actor | ✅ | Soft-delete → `200 { data: UserProfile }` |
@@ -50,6 +56,9 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `AUTH_012` | 401 | Refresh token reuse detected — the session family was revoked |
 | `PERMISSION_001` | 404 | Permission not found |
 | `PERMISSION_002` | 409 | Permission already exists |
+| `ROLE_001` | 404 | Role not found |
+| `ROLE_002` | 403 | System role cannot be renamed or deleted |
+| `ROLE_003` | 409 | Role name already taken |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current

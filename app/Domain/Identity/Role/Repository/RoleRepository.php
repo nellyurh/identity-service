@@ -18,6 +18,9 @@ interface RoleRepository
     /** @throws RoleNotFound */
     public function getById(RoleId $id): Role;
 
+    /** @return list<Role> */
+    public function all(): array;
+
     public function existsByName(RoleName $name): bool;
 
     public function save(Role $role): void;
