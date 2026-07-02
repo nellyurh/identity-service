@@ -11,21 +11,25 @@ namespace App\Application\Auth\Result;
  */
 final readonly class IntrospectionResult
 {
+    /** @param list<string> $permissions */
     private function __construct(
         public bool $active,
         public ?string $subject,
         public ?string $jti,
         public ?string $tokenUse,
         public ?string $expiresAt,
+        public array $permissions,
+        public ?int $authzVersion,
     ) {}
 
     public static function inactive(): self
     {
-        return new self(false, null, null, null, null);
+        return new self(false, null, null, null, null, [], null);
     }
 
-    public static function active(string $subject, string $jti, ?string $tokenUse, string $expiresAt): self
+    /** @param list<string> $permissions */
+    public static function active(string $subject, string $jti, ?string $tokenUse, string $expiresAt, array $permissions, ?int $authzVersion): self
     {
-        return new self(true, $subject, $jti, $tokenUse, $expiresAt);
+        return new self(true, $subject, $jti, $tokenUse, $expiresAt, $permissions, $authzVersion);
     }
 }

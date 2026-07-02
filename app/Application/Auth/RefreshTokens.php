@@ -7,6 +7,7 @@ namespace App\Application\Auth;
 use App\Application\Auth\Command\RefreshCommand;
 use App\Application\Auth\Result\RefreshResult;
 use App\Application\Port\AuditWriter;
+use App\Application\Port\AuthorizationResolver;
 use App\Application\Port\Clock;
 use App\Application\Port\TokenBlacklist;
 use App\Application\Port\TokenGenerator;
@@ -37,6 +38,7 @@ final readonly class RefreshTokens
         private Clock $clock,
         private TransactionManager $tx,
         private TokenBlacklist $blacklist,
+        private AuthorizationResolver $authorization,
         private int $refreshTtlSeconds,
         private int $accessTtlSeconds,
     ) {}
@@ -74,9 +76,15 @@ final readonly class RefreshTokens
         }
 
         return $this->tx->transactional(function () use ($current, $now, $c): RefreshResult {
+            $authz = $this->authorization->resolve($current->userId());
+
             $issued = $this->tokens->issueAccessToken(
                 $current->userId()->value,
-                ['token_use' => 'access'],
+                [
+                    'token_use' => 'access',
+                    'permissions' => $authz->permissions,
+                    'authz_ver' => $authz->authzVersion,
+                ],
                 $now,
             );
 

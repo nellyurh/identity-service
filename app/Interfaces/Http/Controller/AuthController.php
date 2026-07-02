@@ -106,6 +106,8 @@ final class AuthController
                 'jti' => $result->jti,
                 'token_use' => $result->tokenUse,
                 'exp' => $result->expiresAt,
+                'permissions' => $result->permissions,
+                'authz_ver' => $result->authzVersion,
             ];
         }
 

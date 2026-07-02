@@ -664,6 +664,10 @@ components:
         jti: { type: string }
         token_use: { type: string, example: access }
         exp: { type: string, format: date-time }
+        permissions:
+          type: array
+          items: { type: string, example: user.read }
+        authz_ver: { type: integer, nullable: true }
     Jwk:
       type: object
       required: [kty, use, alg, kid, n, e]

@@ -40,6 +40,17 @@ final readonly class IntrospectToken
 
         $tokenUse = is_string($verified->claims['token_use'] ?? null) ? $verified->claims['token_use'] : null;
 
-        return IntrospectionResult::active($verified->subject, $verified->jti, $tokenUse, $verified->expiresAt);
+        $permissions = [];
+        if (is_array($verified->claims['permissions'] ?? null)) {
+            foreach ($verified->claims['permissions'] as $permission) {
+                if (is_string($permission)) {
+                    $permissions[] = $permission;
+                }
+            }
+        }
+
+        $authzVersion = is_int($verified->claims['authz_ver'] ?? null) ? $verified->claims['authz_ver'] : null;
+
+        return IntrospectionResult::active($verified->subject, $verified->jti, $tokenUse, $verified->expiresAt, $permissions, $authzVersion);
     }
 }

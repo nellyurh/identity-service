@@ -61,6 +61,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `ROLE_001` | 404 | Role not found |
 | `ROLE_002` | 403 | System role cannot be renamed or deleted |
 | `ROLE_003` | 409 | Role name already taken |
+| `AUTHZ_001` | 403 | Access token lacks the permission required by the endpoint |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -83,6 +84,19 @@ export IDENTITY_JWT_PUBLIC_KEY="$(cat jwt-public.pem)"
 JWKS then publishes the whole set; tokens signed by the old key keep verifying until they expire,
 after which its entry is dropped. (An automated DB-backed `signing_keys` lifecycle can replace the
 env wiring later without changing the token/JWKS contract.)
+
+## Authorization (permissions in token)
+At issuance (login and each refresh) the user's roles are resolved to a deduplicated, name-ordered
+set of `resource.action` permissions and baked into the access token as a `permissions` claim,
+alongside `authz_ver` (the user's authorization version). Verifiers authorize **offline** on the
+`permissions` claim — no callback to identity-service. `authz_ver` bumps on every role change, so a
+refreshed token reflects the latest grants and a stale token is detectable. Introspection
+(`/tokens/introspect`) echoes both fields for callers that want the current view.
+
+The `permission:<name>` route middleware is the guard primitive: it verifies the Bearer token and
+returns `403 AUTHZ_001` if the required permission is absent (`401 AUTH_010` if the token is
+missing or invalid). Revocation is not checked on this path — routine authorization trusts the
+short access TTL; high-value operations additionally introspect.
 
 ## Refresh & sessions
 `login` also issues a **rotating refresh token** — an opaque 256-bit secret returned once and

@@ -7,6 +7,7 @@ namespace App\Application\Auth;
 use App\Application\Auth\Command\LoginCommand;
 use App\Application\Auth\Result\LoginResult;
 use App\Application\Port\AuditWriter;
+use App\Application\Port\AuthorizationResolver;
 use App\Application\Port\Clock;
 use App\Application\Port\TokenGenerator;
 use App\Application\Port\TokenIssuer;
@@ -35,6 +36,7 @@ final readonly class LoginUser
         private AuditWriter $audit,
         private Clock $clock,
         private TransactionManager $tx,
+        private AuthorizationResolver $authorization,
         private int $refreshTtlSeconds,
     ) {}
 
@@ -47,9 +49,15 @@ final readonly class LoginUser
         $now = $this->clock->now();
 
         return $this->tx->transactional(function () use ($c, $principal, $now): LoginResult {
+            $authz = $this->authorization->resolve(UserId::fromString($principal->userId));
+
             $issued = $this->tokens->issueAccessToken(
                 $principal->userId,
-                ['token_use' => 'access'],
+                [
+                    'token_use' => 'access',
+                    'permissions' => $authz->permissions,
+                    'authz_ver' => $authz->authzVersion,
+                ],
                 $now,
             );
 

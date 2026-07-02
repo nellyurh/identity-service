@@ -8,6 +8,7 @@ use App\Application\Auth\LoginUser;
 use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
 use App\Application\Port\AuditWriter;
+use App\Application\Port\AuthorizationResolver;
 use App\Application\Port\Clock;
 use App\Application\Port\PasswordHasher;
 use App\Application\Port\SigningKeyProvider;
@@ -22,6 +23,7 @@ use App\Domain\Identity\Role\Repository\RoleRepository;
 use App\Domain\Identity\Token\Repository\RefreshTokenRepository;
 use App\Domain\Identity\User\Repository\UserRepository;
 use App\Infrastructure\Audit\DatabaseAuditWriter;
+use App\Infrastructure\Authorization\EloquentAuthorizationResolver;
 use App\Infrastructure\Clock\SystemClock;
 use App\Infrastructure\Outbox\EventBridgePublisher;
 use App\Infrastructure\Persistence\Repository\EloquentPermissionRepository;
@@ -57,6 +59,7 @@ final class DomainServiceProvider extends ServiceProvider
         $this->app->bind(UserRepository::class, EloquentUserRepository::class);
         $this->app->bind(PermissionRepository::class, EloquentPermissionRepository::class);
         $this->app->bind(RoleRepository::class, EloquentRoleRepository::class);
+        $this->app->bind(AuthorizationResolver::class, EloquentAuthorizationResolver::class);
         $this->app->bind(RefreshTokenRepository::class, EloquentRefreshTokenRepository::class);
         $this->app->bind(TokenGenerator::class, RandomRefreshTokenGenerator::class);
         $this->app->bind(TokenBlacklist::class, CacheTokenBlacklist::class);
@@ -115,6 +118,7 @@ final class DomainServiceProvider extends ServiceProvider
                 $app->make(AuditWriter::class),
                 $app->make(Clock::class),
                 $app->make(TransactionManager::class),
+                $app->make(AuthorizationResolver::class),
                 $jwt['refresh_ttl'],
             );
         });
@@ -131,6 +135,7 @@ final class DomainServiceProvider extends ServiceProvider
                 $app->make(Clock::class),
                 $app->make(TransactionManager::class),
                 $app->make(TokenBlacklist::class),
+                $app->make(AuthorizationResolver::class),
                 $jwt['refresh_ttl'],
                 $jwt['access_ttl'],
             );
