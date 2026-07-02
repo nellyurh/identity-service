@@ -31,3 +31,29 @@ other engines synchronously on the auth hot path.
 ## Data stores
 PostgreSQL (Aurora Serverless v2) for state; Redis (ElastiCache) for sessions, token cache,
 and rate limiting; EventBridge for egress. All provisioned by `unero-platform-terraform`.
+
+## Application layer — use cases (milestone 2B)
+
+Application services are thin, `final readonly` orchestrators that depend only on ports
+(repository interfaces, `PasswordHasher`, `AuditWriter`, `Clock`) — never on Eloquent or
+HTTP. Each takes a `Command` DTO and runs inside a single `DB::transaction`, so the
+aggregate change, the drained domain events (to the outbox), and the audit row commit
+together or not at all.
+
+User lifecycle use cases (`app/Application/User/`):
+
+| Use case | Emits | Audit action | Notes |
+|----------|-------|--------------|-------|
+| `RegisterUser` | `UserRegistered` | `user.registered` | email + username uniqueness; password hashed via port |
+| `AuthenticateUser` | — | `user.authenticated` / `user.authentication_failed` | credential + status check only; no enumeration; token issuance is a later milestone |
+| `ChangePassword` | `PasswordChanged` | `user.password_changed` | current password proven first |
+| `DisableUser` | `UserDisabled` | `user.disabled` | |
+| `EnableUser` | `UserActivated` | `user.enabled` | a deleted user cannot be re-enabled |
+| `DeleteUser` | — | `user.deleted` | soft delete; retained for audit |
+| `GetUser` | — | — | read-side `UserProfile` projection (by id / email / username) |
+
+Commands live in `app/Application/User/Command/`, result DTOs in
+`app/Application/User/Result/`. The password plaintext exists only inside a command and is
+handed straight to the `PasswordHasher` port; the domain only ever receives a
+`HashedPassword`. The Argon2id adapter and the Eloquent repositories that back these ports
+arrive in milestone 2C.

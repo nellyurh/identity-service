@@ -7,18 +7,15 @@ namespace App\Domain\Identity\User\Event;
 use App\Domain\Shared\Event\DomainEvent;
 
 /**
- * Emitted when a user is registered. NOTE (contract reconciliation, see EVENTS.md): the
- * shared repository currently ships `UserCreated.schema.json` (fields: user_id, tier,
- * created_at). This event uses identity's own vocabulary; before it is published to the
- * bus (outbox milestone) the shared schema must be reconciled — either add
- * `UserRegistered.schema.json` or map this event onto `UserCreated`. Not resolved here.
+ * Emitted when a user is registered. Business-intent name (not "UserCreated"). Carries no
+ * PII — consumers that need email/username read them from the identity API; the event only
+ * announces that a user now exists and whether their email is verified.
+ * Matches unero-shared-schemas/schemas/events/UserRegistered.schema.json.
  */
 final readonly class UserRegistered implements DomainEvent
 {
     public function __construct(
         public string $userId,
-        public string $email,
-        public string $username,
         public bool $emailVerified,
         public string $occurredAt,
     ) {}
@@ -33,8 +30,6 @@ final readonly class UserRegistered implements DomainEvent
     {
         return [
             'user_id' => $this->userId,
-            'email' => $this->email,
-            'username' => $this->username,
             'email_verified' => $this->emailVerified,
             'occurred_at' => $this->occurredAt,
         ];

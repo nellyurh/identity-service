@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain\Identity\User;
 
+use App\Domain\Identity\User\Event\EmailVerified;
 use App\Domain\Identity\User\Event\PasswordChanged;
 use App\Domain\Identity\User\Event\UserActivated;
 use App\Domain\Identity\User\Event\UserDisabled;
@@ -54,8 +55,6 @@ final class User
 
         $user->recordedEvents[] = new UserRegistered(
             userId: $id->value,
-            email: $email->value,
-            username: $username->value,
             emailVerified: false,
             occurredAt: $now->format(DATE_RFC3339),
         );
@@ -84,7 +83,7 @@ final class User
         $this->emailVerifiedAt = $now;
         $this->touch($now);
 
-        $this->recordedEvents[] = new UserActivated($this->id->value, 'email_verified', $now->format(DATE_RFC3339));
+        $this->recordedEvents[] = new EmailVerified($this->id->value, $now->format(DATE_RFC3339));
     }
 
     /**

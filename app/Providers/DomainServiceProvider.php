@@ -6,9 +6,15 @@ namespace App\Providers;
 
 use App\Application\Port\AuditWriter;
 use App\Application\Port\Clock;
+use App\Application\Port\PasswordHasher;
+use App\Application\Port\TransactionManager;
+use App\Domain\Identity\User\Repository\UserRepository;
 use App\Infrastructure\Audit\DatabaseAuditWriter;
 use App\Infrastructure\Clock\SystemClock;
 use App\Infrastructure\Outbox\EventBridgePublisher;
+use App\Infrastructure\Persistence\Repository\EloquentUserRepository;
+use App\Infrastructure\Security\ArgonPasswordHasher;
+use App\Infrastructure\Transaction\LaravelTransactionManager;
 use Aws\EventBridge\EventBridgeClient;
 use Illuminate\Support\ServiceProvider;
 use Override;
@@ -16,7 +22,7 @@ use Override;
 /**
  * Binds Application ports to their Infrastructure adapters (Ports & Adapters). Domain and
  * Application depend only on the interfaces bound here; nothing framework-specific leaks
- * upward. Aggregate repositories are bound in later milestones as each aggregate lands.
+ * upward. Repositories are added here as each aggregate's persistence lands.
  */
 final class DomainServiceProvider extends ServiceProvider
 {
@@ -25,6 +31,16 @@ final class DomainServiceProvider extends ServiceProvider
     {
         $this->app->bind(AuditWriter::class, DatabaseAuditWriter::class);
         $this->app->singleton(Clock::class, SystemClock::class);
+        $this->app->bind(TransactionManager::class, LaravelTransactionManager::class);
+
+        $this->app->bind(UserRepository::class, EloquentUserRepository::class);
+
+        $this->app->singleton(PasswordHasher::class, static function (): ArgonPasswordHasher {
+            /** @var array{memory_cost:int,time_cost:int,threads:int} $p */
+            $p = config('unero.password');
+
+            return new ArgonPasswordHasher($p['memory_cost'], $p['time_cost'], $p['threads']);
+        });
 
         $this->app->singleton(EventBridgePublisher::class, static fn (): EventBridgePublisher => new EventBridgePublisher(
             new EventBridgeClient([

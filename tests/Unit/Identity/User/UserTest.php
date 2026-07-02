@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Identity\User;
 
+use App\Domain\Identity\User\Event\EmailVerified;
 use App\Domain\Identity\User\Event\PasswordChanged;
-use App\Domain\Identity\User\Event\UserActivated;
 use App\Domain\Identity\User\Event\UserDisabled;
 use App\Domain\Identity\User\Event\UserRegistered;
 use App\Domain\Identity\User\Exception\AccountNotActive;
@@ -45,8 +45,9 @@ final class UserTest extends TestCase
         $this->assertCount(1, $events);
         $this->assertInstanceOf(UserRegistered::class, $events[0]);
         $this->assertSame('UserRegistered', $events[0]->eventType());
-        $this->assertSame('ada@unero.com', $events[0]->payload()['email']);
+        $this->assertSame($user->id->value, $events[0]->payload()['user_id']);
         $this->assertFalse($events[0]->payload()['email_verified']);
+        $this->assertArrayNotHasKey('email', $events[0]->payload(), 'events carry no PII');
 
         $this->assertSame([], $user->releaseEvents(), 'events drain once');
     }
@@ -59,7 +60,7 @@ final class UserTest extends TestCase
         $user->verifyEmail(new DateTimeImmutable('2026-07-02T11:00:00+00:00'));
         $this->assertTrue($user->isEmailVerified());
         $events = $user->releaseEvents();
-        $this->assertInstanceOf(UserActivated::class, $events[0]);
+        $this->assertInstanceOf(EmailVerified::class, $events[0]);
 
         $this->expectException(EmailAlreadyVerified::class);
         $user->verifyEmail(new DateTimeImmutable('2026-07-02T12:00:00+00:00'));

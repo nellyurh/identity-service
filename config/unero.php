@@ -12,6 +12,14 @@ return [
     // Base URL for machine-readable error documentation (shared error envelope docs_url).
     'docs_url' => env('UNERO_DOCS_URL', 'https://docs.unero.com/errors'),
 
+    // Argon2id password hashing parameters (Infrastructure\Security\ArgonPasswordHasher).
+    // Tunable per environment; raise cost over time and needsRehash() upgrades on next login.
+    'password' => [
+        'memory_cost' => (int) env('ARGON_MEMORY_COST', 65536), // KiB (64 MB)
+        'time_cost' => (int) env('ARGON_TIME_COST', 4),
+        'threads' => (int) env('ARGON_THREADS', 1),
+    ],
+
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).
     'platform' => [
         'terraform' => env('UNERO_PLATFORM_TERRAFORM', 'https://github.com/nellyurh/unero-platform-terraform'),
