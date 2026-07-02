@@ -32,7 +32,7 @@ final class EloquentUserRolesTest extends TestCase
     {
         parent::setUp();
         $this->users = new EloquentUserRepository(new OutboxWriter);
-        $this->roles = new EloquentRoleRepository;
+        $this->roles = new EloquentRoleRepository(new OutboxWriter);
         $this->now = new DateTimeImmutable('2026-07-02T10:00:00+00:00');
     }
 
@@ -52,7 +52,7 @@ final class EloquentUserRolesTest extends TestCase
 
     private function newRole(string $name): Role
     {
-        $role = Role::create($this->roles->nextIdentity(), new RoleName($name), null, false);
+        $role = Role::create($this->roles->nextIdentity(), new RoleName($name), null, false, $this->now);
         $this->roles->save($role);
 
         return $role;

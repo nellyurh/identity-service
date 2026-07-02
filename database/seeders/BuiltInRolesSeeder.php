@@ -11,6 +11,7 @@ use App\Domain\Identity\Role\Repository\RoleRepository;
 use App\Domain\Identity\Role\Role;
 use App\Domain\Identity\Role\ValueObject\RoleName;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Date;
 
 /**
  * Seeds the built-in (system) roles and their permission grants. Runs after the permission
@@ -67,6 +68,7 @@ final class BuiltInRolesSeeder extends Seeder
     {
         $roles = app(RoleRepository::class);
         $permissions = app(PermissionRepository::class);
+        $now = Date::now()->toImmutable();
 
         foreach (self::ROLES as $slug => $spec) {
             $name = new RoleName($slug);
@@ -74,11 +76,11 @@ final class BuiltInRolesSeeder extends Seeder
                 continue;
             }
 
-            $role = Role::create($roles->nextIdentity(), $name, $spec['description'], true);
+            $role = Role::create($roles->nextIdentity(), $name, $spec['description'], true, $now);
 
             $grants = $spec['permissions'] === ['*'] ? $this->allPermissionNames($permissions) : $spec['permissions'];
             foreach ($grants as $permissionName) {
-                $role->grantPermission($permissions->getByName(new PermissionName($permissionName))->id);
+                $role->grantPermission($permissions->getByName(new PermissionName($permissionName))->id, $now);
             }
 
             $roles->save($role);

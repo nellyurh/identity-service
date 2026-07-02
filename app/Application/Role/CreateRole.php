@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Application\Role;
 
 use App\Application\Port\AuditWriter;
+use App\Application\Port\Clock;
 use App\Application\Port\TransactionManager;
 use App\Application\Role\Command\CreateRoleCommand;
 use App\Application\Role\Result\RoleView;
@@ -23,6 +24,7 @@ final readonly class CreateRole
         private RoleRepository $roles,
         private RoleViewFactory $views,
         private AuditWriter $audit,
+        private Clock $clock,
         private TransactionManager $tx,
     ) {}
 
@@ -35,7 +37,7 @@ final readonly class CreateRole
         }
 
         return $this->tx->transactional(function () use ($c, $name): RoleView {
-            $role = Role::create($this->roles->nextIdentity(), $name, $c->description, false);
+            $role = Role::create($this->roles->nextIdentity(), $name, $c->description, false, $this->clock->now());
             $this->roles->save($role);
 
             $this->audit->record(

@@ -10,8 +10,10 @@ use App\Domain\Identity\Role\Exception\RoleNotFound;
 use App\Domain\Identity\Role\Role;
 use App\Domain\Identity\Role\ValueObject\RoleId;
 use App\Domain\Identity\Role\ValueObject\RoleName;
+use App\Infrastructure\Outbox\OutboxWriter;
 use App\Infrastructure\Persistence\Repository\EloquentPermissionRepository;
 use App\Infrastructure\Persistence\Repository\EloquentRoleRepository;
+use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Symfony\Component\Uid\Ulid;
 use Tests\TestCase;
@@ -24,11 +26,14 @@ final class EloquentRoleRepositoryTest extends TestCase
 
     private EloquentPermissionRepository $permissions;
 
+    private DateTimeImmutable $now;
+
     protected function setUp(): void
     {
         parent::setUp();
-        $this->roles = new EloquentRoleRepository;
+        $this->roles = new EloquentRoleRepository(new OutboxWriter);
         $this->permissions = new EloquentPermissionRepository;
+        $this->now = new DateTimeImmutable('2026-07-02T10:00:00+00:00');
     }
 
     private function permission(string $name): Permission
@@ -44,9 +49,9 @@ final class EloquentRoleRepositoryTest extends TestCase
         $read = $this->permission('user.read');
         $create = $this->permission('user.create');
 
-        $role = Role::create($this->roles->nextIdentity(), new RoleName('editor'), 'Editors', false);
-        $role->grantPermission($read->id);
-        $role->grantPermission($create->id);
+        $role = Role::create($this->roles->nextIdentity(), new RoleName('editor'), 'Editors', false, $this->now);
+        $role->grantPermission($read->id, $this->now);
+        $role->grantPermission($create->id, $this->now);
         $this->roles->save($role);
 
         $this->assertDatabaseHas('roles', ['id' => $role->id->value, 'name' => 'editor', 'is_system' => false]);
@@ -56,6 +61,9 @@ final class EloquentRoleRepositoryTest extends TestCase
         $loaded = $this->roles->findById(new RoleId($role->id->value));
         $this->assertNotNull($loaded);
         $this->assertCount(2, $loaded?->permissions() ?? []);
+
+        $this->assertDatabaseHas('outbox_entries', ['event_type' => 'RoleCreated', 'aggregate_type' => 'Role']);
+        $this->assertDatabaseHas('outbox_entries', ['event_type' => 'PermissionGranted', 'aggregate_type' => 'Role']);
     }
 
     public function test_resave_syncs_the_pivot(): void
@@ -63,13 +71,13 @@ final class EloquentRoleRepositoryTest extends TestCase
         $read = $this->permission('user.read');
         $create = $this->permission('user.create');
 
-        $role = Role::create($this->roles->nextIdentity(), new RoleName('editor'), null, false);
-        $role->grantPermission($read->id);
-        $role->grantPermission($create->id);
+        $role = Role::create($this->roles->nextIdentity(), new RoleName('editor'), null, false, $this->now);
+        $role->grantPermission($read->id, $this->now);
+        $role->grantPermission($create->id, $this->now);
         $this->roles->save($role);
 
         $loaded = $this->roles->getById(new RoleId($role->id->value));
-        $loaded->revokePermission($read->id);
+        $loaded->revokePermission($read->id, $this->now);
         $this->roles->save($loaded);
 
         $this->assertDatabaseMissing('role_permissions', ['role_id' => $role->id->value, 'permission_id' => $read->id->value]);
@@ -78,8 +86,8 @@ final class EloquentRoleRepositoryTest extends TestCase
 
     public function test_all_is_name_ordered(): void
     {
-        $this->roles->save(Role::create($this->roles->nextIdentity(), new RoleName('zulu'), null, false));
-        $this->roles->save(Role::create($this->roles->nextIdentity(), new RoleName('alpha'), null, false));
+        $this->roles->save(Role::create($this->roles->nextIdentity(), new RoleName('zulu'), null, false, $this->now));
+        $this->roles->save(Role::create($this->roles->nextIdentity(), new RoleName('alpha'), null, false, $this->now));
 
         $names = array_map(static fn (Role $r): string => $r->name()->value, $this->roles->all());
 

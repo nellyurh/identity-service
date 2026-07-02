@@ -31,14 +31,20 @@ Envelope: `event_id` (UUIDv7), `event_type` (PascalCase, business-intent), `even
 | `TokenRevoked` | `user_id`, `family_id`, `reason`, `occurred_at` | `events/TokenRevoked.schema.json` |
 | `RoleAssigned` | `user_id`, `role_id`, `authz_version`, `occurred_at` | `events/RoleAssigned.schema.json` |
 | `RoleRemoved` | `user_id`, `role_id`, `authz_version`, `occurred_at` | `events/RoleRemoved.schema.json` |
+| `RoleCreated` | `role_id`, `name`, `is_system`, `occurred_at` | `events/RoleCreated.schema.json` |
+| `PermissionGranted` | `role_id`, `permission_id`, `occurred_at` | `events/PermissionGranted.schema.json` |
+| `PermissionRevoked` | `role_id`, `permission_id`, `occurred_at` | `events/PermissionRevoked.schema.json` |
 
 `TokenIssued` fires on login (new family) and on each refresh rotation (same family). `TokenRevoked`
 is family-level and fires on logout, on refresh-token **reuse detection**, or when a security change
 invalidates sessions; `reason` is one of `logout | reuse_detected | password_change`.
 
-Planned (landing per milestone): `RoleCreated`, `PermissionGranted`,
-`PermissionRevoked` (2F-d), `ApiKeyCreated`, `ApiKeyRevoked` (2G), `SessionRevoked`,
+Planned (landing per milestone): `ApiKeyCreated`, `ApiKeyRevoked` (2G), `SessionRevoked`,
 `MFAEnabled`, `MFADisabled` (2H).
+
+Note: seeding the built-in roles emits `RoleCreated` and one `PermissionGranted` per seeded grant
+(e.g. `super_admin` emits 22). This is intentional — the grants genuinely occur — and only runs on
+first seed.
 
 ## Consumed
 None. Identity is a source of truth for principals and access.

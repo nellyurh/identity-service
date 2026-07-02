@@ -5,10 +5,14 @@ declare(strict_types=1);
 namespace App\Domain\Identity\Role;
 
 use App\Domain\Identity\Permission\ValueObject\PermissionId;
+use App\Domain\Identity\Role\Event\PermissionGranted;
+use App\Domain\Identity\Role\Event\PermissionRevoked;
+use App\Domain\Identity\Role\Event\RoleCreated;
 use App\Domain\Identity\Role\Exception\SystemRoleImmutable;
 use App\Domain\Identity\Role\ValueObject\RoleId;
 use App\Domain\Identity\Role\ValueObject\RoleName;
 use App\Domain\Shared\Event\DomainEvent;
+use DateTimeImmutable;
 
 /**
  * Aggregate root for a role: a named set of permissions that users (and service accounts)
@@ -29,8 +33,13 @@ final class Role
         RoleName $name,
         ?string $description,
         bool $isSystem,
+        DateTimeImmutable $now,
     ): self {
-        return new self($id, $name, $description, $isSystem, []);
+        $role = new self($id, $name, $description, $isSystem, []);
+
+        $role->recordedEvents[] = new RoleCreated($id->value, $name->value, $isSystem, $now->format(DATE_RFC3339));
+
+        return $role;
     }
 
     /** @param list<PermissionId> $permissions */
@@ -57,20 +66,27 @@ final class Role
         $this->description = $description;
     }
 
-    public function grantPermission(PermissionId $permissionId): void
+    public function grantPermission(PermissionId $permissionId, DateTimeImmutable $now): void
     {
         if ($this->hasPermission($permissionId)) {
             return;
         }
         $this->permissions[] = $permissionId;
+
+        $this->recordedEvents[] = new PermissionGranted($this->id->value, $permissionId->value, $now->format(DATE_RFC3339));
     }
 
-    public function revokePermission(PermissionId $permissionId): void
+    public function revokePermission(PermissionId $permissionId, DateTimeImmutable $now): void
     {
+        if (! $this->hasPermission($permissionId)) {
+            return;
+        }
         $this->permissions = array_values(array_filter(
             $this->permissions,
             static fn (PermissionId $p): bool => ! $p->equals($permissionId),
         ));
+
+        $this->recordedEvents[] = new PermissionRevoked($this->id->value, $permissionId->value, $now->format(DATE_RFC3339));
     }
 
     public function hasPermission(PermissionId $permissionId): bool

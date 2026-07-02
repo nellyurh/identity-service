@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Application\Role;
 
 use App\Application\Port\AuditWriter;
+use App\Application\Port\Clock;
 use App\Application\Port\TransactionManager;
 use App\Application\Role\Command\RevokePermissionCommand;
 use App\Application\Role\Result\RoleView;
@@ -24,6 +25,7 @@ final readonly class RevokePermission
         private PermissionRepository $permissions,
         private RoleViewFactory $views,
         private AuditWriter $audit,
+        private Clock $clock,
         private TransactionManager $tx,
     ) {}
 
@@ -33,7 +35,7 @@ final readonly class RevokePermission
         $permission = $this->permissions->getByName(new PermissionName($c->permissionName));
 
         return $this->tx->transactional(function () use ($c, $role, $permission): RoleView {
-            $role->revokePermission($permission->id);
+            $role->revokePermission($permission->id, $this->clock->now());
             $this->roles->save($role);
 
             $this->audit->record(

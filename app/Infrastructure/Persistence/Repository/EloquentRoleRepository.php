@@ -10,6 +10,7 @@ use App\Domain\Identity\Role\Repository\RoleRepository;
 use App\Domain\Identity\Role\Role;
 use App\Domain\Identity\Role\ValueObject\RoleId;
 use App\Domain\Identity\Role\ValueObject\RoleName;
+use App\Infrastructure\Outbox\OutboxWriter;
 use App\Infrastructure\Persistence\Model\RoleModel;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,14 @@ use Symfony\Component\Uid\Ulid;
  */
 final readonly class EloquentRoleRepository implements RoleRepository
 {
+    private const int EVENT_VERSION = 1;
+
+    private const string SCHEMA_VERSION = '1.0.0';
+
+    public function __construct(
+        private OutboxWriter $outbox,
+    ) {}
+
     public function findById(RoleId $id): ?Role
     {
         return $this->map(RoleModel::query()->find($id->value));
@@ -83,6 +92,17 @@ final readonly class EloquentRoleRepository implements RoleRepository
         }
         if ($rows !== []) {
             DB::table('role_permissions')->insert($rows);
+        }
+
+        foreach ($role->releaseEvents() as $event) {
+            $this->outbox->write(
+                $event->eventType(),
+                self::EVENT_VERSION,
+                self::SCHEMA_VERSION,
+                'Role',
+                $role->id->value,
+                $event->payload(),
+            );
         }
     }
 
