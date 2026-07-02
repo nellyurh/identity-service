@@ -148,6 +148,35 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
 
+  /identity/tokens/introspect:
+    post:
+      summary: Introspect an access token
+      description: >
+        Service-facing (RFC 7662). Verifies the access token (RS256 signature, expiry, audience)
+        and checks the jti denylist. Always 200; the body's `active` flag is the answer. A failed
+        or denylisted token returns `{ active: false }` and nothing else. Gateway-authenticated
+        (service actor).
+      parameters:
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/IntrospectRequest" }
+      responses:
+        "200":
+          description: introspection result (active or not)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { $ref: "#/components/schemas/IntrospectionData" }
+        "401": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
   /identity/change-password:
     post:
       summary: Change own password (self-service)
@@ -355,6 +384,20 @@ components:
       required: [refresh_token]
       properties:
         refresh_token: { type: string }
+    IntrospectRequest:
+      type: object
+      required: [token]
+      properties:
+        token: { type: string, description: the access token (JWT) to introspect }
+    IntrospectionData:
+      type: object
+      required: [active]
+      properties:
+        active: { type: boolean }
+        sub: { $ref: "#/components/schemas/Ulid" }
+        jti: { type: string }
+        token_use: { type: string, example: access }
+        exp: { type: string, format: date-time }
     Jwk:
       type: object
       required: [kty, use, alg, kid, n, e]

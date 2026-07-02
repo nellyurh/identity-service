@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Application\Auth\LoginUser;
+use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
 use App\Application\Port\AuditWriter;
 use App\Application\Port\Clock;
 use App\Application\Port\PasswordHasher;
 use App\Application\Port\SigningKeyProvider;
+use App\Application\Port\TokenBlacklist;
 use App\Application\Port\TokenGenerator;
 use App\Application\Port\TokenIssuer;
 use App\Application\Port\TokenVerifier;
@@ -23,6 +25,7 @@ use App\Infrastructure\Outbox\EventBridgePublisher;
 use App\Infrastructure\Persistence\Repository\EloquentRefreshTokenRepository;
 use App\Infrastructure\Persistence\Repository\EloquentUserRepository;
 use App\Infrastructure\Security\ArgonPasswordHasher;
+use App\Infrastructure\Token\CacheTokenBlacklist;
 use App\Infrastructure\Token\ConfigSigningKeyProvider;
 use App\Infrastructure\Token\OpensslRs256TokenIssuer;
 use App\Infrastructure\Token\OpensslRs256TokenVerifier;
@@ -50,6 +53,7 @@ final class DomainServiceProvider extends ServiceProvider
         $this->app->bind(UserRepository::class, EloquentUserRepository::class);
         $this->app->bind(RefreshTokenRepository::class, EloquentRefreshTokenRepository::class);
         $this->app->bind(TokenGenerator::class, RandomRefreshTokenGenerator::class);
+        $this->app->bind(TokenBlacklist::class, CacheTokenBlacklist::class);
 
         $this->app->singleton(PasswordHasher::class, static function (): ArgonPasswordHasher {
             /** @var array{memory_cost:int,time_cost:int,threads:int} $p */
@@ -100,7 +104,7 @@ final class DomainServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(RefreshTokens::class, static function (Application $app): RefreshTokens {
-            /** @var array{refresh_ttl:int} $jwt */
+            /** @var array{refresh_ttl:int,access_ttl:int} $jwt */
             $jwt = config('unero.jwt');
 
             return new RefreshTokens(
@@ -110,7 +114,23 @@ final class DomainServiceProvider extends ServiceProvider
                 $app->make(AuditWriter::class),
                 $app->make(Clock::class),
                 $app->make(TransactionManager::class),
+                $app->make(TokenBlacklist::class),
                 $jwt['refresh_ttl'],
+                $jwt['access_ttl'],
+            );
+        });
+
+        $this->app->bind(LogoutUser::class, static function (Application $app): LogoutUser {
+            /** @var array{access_ttl:int} $jwt */
+            $jwt = config('unero.jwt');
+
+            return new LogoutUser(
+                $app->make(RefreshTokenRepository::class),
+                $app->make(AuditWriter::class),
+                $app->make(Clock::class),
+                $app->make(TransactionManager::class),
+                $app->make(TokenBlacklist::class),
+                $jwt['access_ttl'],
             );
         });
 

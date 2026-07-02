@@ -24,6 +24,10 @@ Route::prefix('identity')->group(function (): void {
 
     // Internal admin surface — gateway-authenticated (auth.service resolves the actor).
     Route::middleware('auth.service')->group(function (): void {
+        // Token introspection for services doing high-value operations (RFC 7662 shape):
+        // stateless verify + jti-denylist check. Not idempotency-keyed (a pure read).
+        Route::post('tokens/introspect', [AuthController::class, 'introspect']);
+
         Route::get('users/{id}', [UserController::class, 'show'])->whereUlid('id');
         Route::get('users', [UserController::class, 'lookup']);
 

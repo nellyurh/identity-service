@@ -8,6 +8,7 @@ use App\Application\Auth\Command\RefreshCommand;
 use App\Application\Auth\Result\RefreshResult;
 use App\Application\Port\AuditWriter;
 use App\Application\Port\Clock;
+use App\Application\Port\TokenBlacklist;
 use App\Application\Port\TokenGenerator;
 use App\Application\Port\TokenIssuer;
 use App\Application\Port\TransactionManager;
@@ -17,13 +18,14 @@ use App\Domain\Identity\Token\RefreshToken;
 use App\Domain\Identity\Token\Repository\RefreshTokenRepository;
 use App\Domain\Identity\Token\RevocationReason;
 use DateInterval;
+use DateTimeImmutable;
 
 /**
  * Exchange a refresh token for a new access + refresh pair (rotation). The presented token is
- * looked up by hash and asserted usable; a token presented after it was already rotated is
- * reuse — the whole family is revoked and the exchange is refused. On success the current token
- * is closed, a successor is minted in the same family, and both are saved atomically with the
- * new access token's jti so state and outbox never diverge.
+ * looked up by hash and asserted usable; a token presented after it was already rotated is reuse —
+ * the whole family is revoked, its still-valid access tokens are blacklisted, and the exchange is
+ * refused. On success the current token is closed, a successor is minted in the same family, and
+ * both are saved atomically with the new access token's jti so state and outbox never diverge.
  */
 final readonly class RefreshTokens
 {
@@ -34,7 +36,9 @@ final readonly class RefreshTokens
         private AuditWriter $audit,
         private Clock $clock,
         private TransactionManager $tx,
+        private TokenBlacklist $blacklist,
         private int $refreshTtlSeconds,
+        private int $accessTtlSeconds,
     ) {}
 
     public function handle(RefreshCommand $c): RefreshResult
@@ -49,6 +53,8 @@ final readonly class RefreshTokens
         try {
             $current->assertUsable($now);
         } catch (TokenReuseDetected $e) {
+            $members = $this->refreshTokens->membersOf($current->familyId());
+
             $this->tx->transactional(function () use ($current, $now, $c): void {
                 $this->refreshTokens->revokeFamily($current->familyId(), RevocationReason::ReuseDetected, $now);
                 $this->audit->record(
@@ -61,6 +67,8 @@ final readonly class RefreshTokens
                     null,
                 );
             });
+
+            $this->blacklistFamily($members, $now);
 
             throw $e;
         }
@@ -102,5 +110,18 @@ final readonly class RefreshTokens
                 refreshExpiresIn: $this->refreshTtlSeconds,
             );
         });
+    }
+
+    /**
+     * @param  list<RefreshToken>  $members
+     */
+    private function blacklistFamily(array $members, DateTimeImmutable $now): void
+    {
+        foreach ($members as $member) {
+            $accessExpiry = $member->createdAt()->add(new DateInterval('PT'.$this->accessTtlSeconds.'S'));
+            if ($accessExpiry > $now) {
+                $this->blacklist->blacklist($member->accessJti(), $accessExpiry);
+            }
+        }
     }
 }

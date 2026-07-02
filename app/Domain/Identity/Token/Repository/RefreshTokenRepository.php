@@ -15,6 +15,14 @@ interface RefreshTokenRepository
     /** Look a token up by the SHA-256 hash of its opaque secret. Null if unknown. */
     public function findByHash(string $tokenHash): ?RefreshToken;
 
+    /**
+     * Every token in a family (any state). Used to enumerate the paired access jtis when a family
+     * is revoked, so still-valid access tokens can be blacklisted.
+     *
+     * @return list<RefreshToken>
+     */
+    public function membersOf(FamilyId $familyId): array;
+
     /** Persist the aggregate and drain its recorded events to the outbox atomically. */
     public function save(RefreshToken $token): void;
 

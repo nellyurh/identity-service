@@ -22,6 +22,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | POST | `/identity/login` | public | — | Verify credentials → `200 { data: Principal + access_token, refresh_token, token_type, expires_in, refresh_expires_in }` |
 | POST | `/identity/auth/refresh` | public | — | Rotate the token pair → `200 { data: TokenPair }` (reuse → AUTH_012, family revoked) |
 | POST | `/identity/auth/logout` | public | — | Revoke the session family → `200 { data: { user_id } }` (idempotent) |
+| POST | `/identity/tokens/introspect` | service | — | Verify + denylist-check an access token → `200 { data: { active, sub?, jti?, token_use?, exp? } }` |
 | GET | `/.well-known/jwks.json` | public | — | Public RS256 verification keys (JWKS) |
 | POST | `/identity/change-password` | actor | ✅ | Self-service password change → `200 { data: UserProfile }` |
 | GET | `/identity/users/{id}` | actor | — | Fetch a user → `200 { data: UserProfile }` |
@@ -66,10 +67,12 @@ stored only as a SHA-256 hash, belonging to a new session **family** (30-day def
 `/auth/refresh` exchanges it for a fresh access + refresh pair and rotates the old one out;
 presenting an already-rotated token is **reuse** (a replayed/stolen token) and revokes the entire
 family (AUTH_012). `/auth/logout` revokes the family. Both are public and carry no idempotency
-key — the refresh token is itself single-use. The short-lived access token is not yet actively
-revoked on logout; it self-expires within the access TTL (active revocation via introspection +
-`jti` blacklist arrives next).
+key — the refresh token is itself single-use. On logout and on reuse detection, every still-valid
+access `jti` in the family is added to a **denylist** (cache/Redis, self-expiring at the token's
+own TTL); `/tokens/introspect` consults it, so a service doing a high-value operation sees the
+revocation near-real-time. Routine stateless verification does not check the denylist — it trusts
+the short access TTL.
 
 ## Not yet issued
-Access-token `jti` blacklist (Redis), token introspection, multi-key rotation (`signing_keys`),
-and explicit session listing arrive in the next slice.
+Multi-key signing rotation (`signing_keys`, multiple active `kid`s), password-change-triggered
+session revocation, and explicit session listing arrive in the next slices.

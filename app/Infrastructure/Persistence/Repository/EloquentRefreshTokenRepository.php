@@ -36,6 +36,18 @@ final readonly class EloquentRefreshTokenRepository implements RefreshTokenRepos
         return $this->map(RefreshTokenModel::query()->where('token_hash', $tokenHash)->first());
     }
 
+    /** @return list<RefreshToken> */
+    public function membersOf(FamilyId $familyId): array
+    {
+        return array_values(
+            RefreshTokenModel::query()
+                ->where('family_id', $familyId->value)
+                ->get()
+                ->map(fn (RefreshTokenModel $model): RefreshToken => $this->hydrate($model))
+                ->all(),
+        );
+    }
+
     public function save(RefreshToken $token): void
     {
         RefreshTokenModel::query()->updateOrCreate(
@@ -114,6 +126,11 @@ final readonly class EloquentRefreshTokenRepository implements RefreshTokenRepos
             return null;
         }
 
+        return $this->hydrate($model);
+    }
+
+    private function hydrate(RefreshTokenModel $model): RefreshToken
+    {
         return RefreshToken::reconstitute(
             new RefreshTokenId($model->id),
             UserId::fromString($model->user_id),

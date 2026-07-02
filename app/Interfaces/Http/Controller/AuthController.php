@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace App\Interfaces\Http\Controller;
 
+use App\Application\Auth\Command\IntrospectCommand;
 use App\Application\Auth\Command\LoginCommand;
 use App\Application\Auth\Command\LogoutCommand;
 use App\Application\Auth\Command\RefreshCommand;
+use App\Application\Auth\IntrospectToken;
 use App\Application\Auth\LoginUser;
 use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
 use App\Application\User\Command\RegisterUserCommand;
 use App\Application\User\RegisterUser;
+use App\Interfaces\Http\Request\IntrospectRequest;
 use App\Interfaces\Http\Request\LoginRequest;
 use App\Interfaces\Http\Request\LogoutRequest;
 use App\Interfaces\Http\Request\RefreshRequest;
@@ -87,6 +90,26 @@ final class AuthController
         ));
 
         return response()->json(['data' => ['user_id' => $result->userId]]);
+    }
+
+    public function introspect(IntrospectRequest $request, IntrospectToken $handler): JsonResponse
+    {
+        $result = $handler->handle(new IntrospectCommand(
+            token: (string) $request->string('token'),
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        $data = ['active' => $result->active];
+        if ($result->active) {
+            $data += [
+                'sub' => $result->subject,
+                'jti' => $result->jti,
+                'token_use' => $result->tokenUse,
+                'exp' => $result->expiresAt,
+            ];
+        }
+
+        return response()->json(['data' => $data]);
     }
 
     /**
