@@ -36,16 +36,20 @@ final readonly class AuthenticateUser
             throw InvalidCredentials::create();
         }
 
+        // Verify the password BEFORE inspecting account state. A wrong password on a disabled account
+        // must be indistinguishable from a wrong password on an active one (and from an unknown email):
+        // all yield AUTH_002. Only once the caller has proven they own the account do we reveal that
+        // it is not active — which is safe, and useful, to tell the legitimate owner.
+        if (! $this->hasher->verify($c->password, $user->passwordHash()->value)) {
+            $this->recordFailure($c, 'bad_password', $user->id->value);
+            throw InvalidCredentials::create();
+        }
+
         try {
             $user->assertCanAuthenticate();
         } catch (AccountNotActive $e) {
             $this->recordFailure($c, 'account_'.$user->status()->value, $user->id->value);
             throw $e;
-        }
-
-        if (! $this->hasher->verify($c->password, $user->passwordHash()->value)) {
-            $this->recordFailure($c, 'bad_password', $user->id->value);
-            throw InvalidCredentials::create();
         }
 
         $this->audit->record(

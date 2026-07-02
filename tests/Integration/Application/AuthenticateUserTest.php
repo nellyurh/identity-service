@@ -78,4 +78,21 @@ final class AuthenticateUserTest extends TestCase
         $this->expectException(AccountNotActive::class);
         $this->auth->handle(new AuthenticateUserCommand('ada@unero.com', 'correct-horse', 'req-4'));
     }
+
+    public function test_disabled_account_with_wrong_password_does_not_reveal_status(): void
+    {
+        /** @var UserRepository $repo */
+        $repo = $this->users;
+        $user = $repo->findByEmail(new Email('ada@unero.com'));
+        $this->assertNotNull($user);
+        $user?->disable(new DateTimeImmutable('2026-07-02T11:00:00+00:00'));
+        if ($user !== null) {
+            $repo->save($user);
+        }
+
+        // Wrong password on a disabled account looks exactly like any other bad credential (AUTH_002),
+        // not AccountNotActive — the account's state is never revealed before the password is proven.
+        $this->expectException(InvalidCredentials::class);
+        $this->auth->handle(new AuthenticateUserCommand('ada@unero.com', 'wrong', 'req-5'));
+    }
 }

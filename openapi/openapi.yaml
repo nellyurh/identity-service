@@ -72,8 +72,9 @@ paths:
       summary: Authenticate a user
       description: >
         Verifies credentials and returns the principal plus a short-lived RS256 access token
-        and a rotating refresh token (a new session family). Invalid credentials and unknown
-        accounts both return AUTH_002 (no enumeration).
+        and a rotating refresh token (a new session family). Unknown accounts, wrong passwords,
+        and disabled accounts with a wrong password all return AUTH_002 alike — account state is
+        never revealed until the password is proven (no enumeration).
       requestBody:
         required: true
         content:
