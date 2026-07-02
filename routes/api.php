@@ -7,6 +7,7 @@ use App\Interfaces\Http\Controller\HealthController;
 use App\Interfaces\Http\Controller\JwksController;
 use App\Interfaces\Http\Controller\PermissionController;
 use App\Interfaces\Http\Controller\RoleController;
+use App\Interfaces\Http\Controller\ServiceAccountController;
 use App\Interfaces\Http\Controller\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -40,6 +41,10 @@ Route::prefix('identity')->group(function (): void {
         Route::get('roles', [RoleController::class, 'index']);
         Route::get('roles/{id}', [RoleController::class, 'show'])->whereUlid('id');
 
+        // Service accounts (service-to-service identities).
+        Route::get('service-accounts', [ServiceAccountController::class, 'index']);
+        Route::get('service-accounts/{id}', [ServiceAccountController::class, 'show'])->whereUlid('id');
+
         // Mutations are idempotent.
         Route::middleware('idempotency')->group(function (): void {
             Route::post('permissions', [PermissionController::class, 'store']);
@@ -56,6 +61,9 @@ Route::prefix('identity')->group(function (): void {
             Route::post('users/{id}/roles', [UserController::class, 'assignRole'])->whereUlid('id');
             Route::delete('users/{id}/roles/{roleId}', [UserController::class, 'revokeRole'])
                 ->whereUlid('id')->whereUlid('roleId');
+            Route::post('service-accounts', [ServiceAccountController::class, 'store']);
+            Route::post('service-accounts/{id}/rotate', [ServiceAccountController::class, 'rotate'])->whereUlid('id');
+            Route::post('service-accounts/{id}/disable', [ServiceAccountController::class, 'disable'])->whereUlid('id');
         });
     });
 });

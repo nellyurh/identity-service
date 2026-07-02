@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Domain\Identity\ServiceAccount;
 
 use App\Domain\Identity\ServiceAccount\Event\ServiceAccountCreated;
+use App\Domain\Identity\ServiceAccount\Event\ServiceAccountCredentialRotated;
+use App\Domain\Identity\ServiceAccount\Event\ServiceAccountDisabled;
 use App\Domain\Identity\ServiceAccount\Exception\ServiceAccountNotActive;
 use App\Domain\Identity\ServiceAccount\ValueObject\HashedSecret;
 use App\Domain\Identity\ServiceAccount\ValueObject\Scope;
@@ -70,12 +72,19 @@ final class ServiceAccount
     {
         $this->secretHash = $newSecretHash;
         $this->updatedAt = $now;
+
+        $this->recordedEvents[] = new ServiceAccountCredentialRotated($this->id->value, $now->format(DATE_RFC3339));
     }
 
     public function disable(DateTimeImmutable $now): void
     {
+        if ($this->status === ServiceAccountStatus::Disabled) {
+            return;
+        }
         $this->status = ServiceAccountStatus::Disabled;
         $this->updatedAt = $now;
+
+        $this->recordedEvents[] = new ServiceAccountDisabled($this->id->value, $now->format(DATE_RFC3339));
     }
 
     public function assertCanAuthenticate(): void

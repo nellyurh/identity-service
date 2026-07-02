@@ -20,6 +20,9 @@ interface ServiceAccountRepository
 
     public function existsByName(ServiceName $name): bool;
 
+    /** @return list<ServiceAccount> */
+    public function all(): array;
+
     /** Persist the aggregate and drain its recorded events to the outbox atomically. */
     public function save(ServiceAccount $account): void;
 

@@ -386,6 +386,88 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /identity/service-accounts:
+    get:
+      summary: List service accounts
+      parameters:
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+      responses:
+        "200":
+          description: service account list (no secrets)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/ServiceAccountView" } }
+        "401": { $ref: "#/components/responses/Error" }
+    post:
+      summary: Create a service account
+      description: Returns the client secret once inside data.secret. The name is unique and doubles as the client_id.
+      parameters:
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateServiceAccountRequest" }
+      responses:
+        "201": { $ref: "#/components/responses/ServiceAccountCredential" }
+        "401": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/service-accounts/{id}:
+    get:
+      summary: Read a service account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+      responses:
+        "200": { $ref: "#/components/responses/ServiceAccountView" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /identity/service-accounts/{id}/rotate:
+    post:
+      summary: Rotate a service account's client secret
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200": { $ref: "#/components/responses/ServiceAccountCredential" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /identity/service-accounts/{id}/disable:
+    post:
+      summary: Disable a service account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200": { $ref: "#/components/responses/ServiceAccountView" }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /identity/change-password:
     post:
       summary: Change own password (self-service)
@@ -529,6 +611,30 @@ components:
             required: [data]
             properties:
               data: { $ref: "#/components/schemas/UserProfile" }
+    ServiceAccountView:
+      description: A service account projection (no secret)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data: { $ref: "#/components/schemas/ServiceAccountView" }
+    ServiceAccountCredential:
+      description: A service account plus its one-time client secret
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                allOf:
+                  - $ref: "#/components/schemas/ServiceAccountView"
+                  - type: object
+                    required: [secret]
+                    properties:
+                      secret: { type: string, description: plaintext client secret, shown once }
     Role:
       description: A role with its resolved permission names
       content:
@@ -655,6 +761,26 @@ components:
       required: [role_id]
       properties:
         role_id: { $ref: "#/components/schemas/Ulid" }
+    ServiceAccountView:
+      type: object
+      required: [id, name, status, scopes, created_at, updated_at]
+      properties:
+        id: { $ref: "#/components/schemas/Ulid" }
+        name: { type: string, pattern: "^[a-z][a-z0-9-]*$", example: wallet }
+        status: { type: string, enum: [active, disabled] }
+        scopes:
+          type: array
+          items: { type: string, example: wallet.credit }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CreateServiceAccountRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, pattern: "^[a-z][a-z0-9-]*$", example: wallet }
+        scopes:
+          type: array
+          items: { type: string, pattern: "^[a-z][a-z0-9_]*[.:][a-z][a-z0-9_*]*$", example: wallet.credit }
     IntrospectionData:
       type: object
       required: [active]

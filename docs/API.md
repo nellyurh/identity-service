@@ -40,6 +40,11 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | DELETE | `/identity/users/{id}` | actor | ✅ | Soft-delete → `200 { data: UserProfile }` |
 | POST | `/identity/users/{id}/roles` | actor | ✅ | Assign a role → `200 { data: UserProfile }` (bumps authz_version) |
 | DELETE | `/identity/users/{id}/roles/{roleId}` | actor | ✅ | Revoke a role → `200 { data: UserProfile }` (bumps authz_version) |
+| GET | `/identity/service-accounts` | actor | — | List service accounts → `200 { data: [ServiceAccountView] }` (no secrets) |
+| GET | `/identity/service-accounts/{id}` | actor | — | Read a service account → `200 { data: ServiceAccountView }` |
+| POST | `/identity/service-accounts` | actor | ✅ | Create → `201 { data: ServiceAccountView + secret }` (secret shown once) |
+| POST | `/identity/service-accounts/{id}/rotate` | actor | ✅ | Rotate secret → `200 { data: ServiceAccountView + secret }` |
+| POST | `/identity/service-accounts/{id}/disable` | actor | ✅ | Disable → `200 { data: ServiceAccountView }` |
 
 ## Error codes (this surface)
 
@@ -62,6 +67,9 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `ROLE_002` | 403 | System role cannot be renamed or deleted |
 | `ROLE_003` | 409 | Role name already taken |
 | `AUTHZ_001` | 403 | Access token lacks the permission required by the endpoint |
+| `SERVICE_001` | 404 | Service account not found |
+| `SERVICE_002` | 401 | Service account cannot authenticate (disabled) |
+| `SERVICE_003` | 409 | Service account name already taken |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
