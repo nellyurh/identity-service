@@ -51,6 +51,12 @@ return [
         'ttl' => (int) env('IDENTITY_EMAIL_VERIFICATION_TTL', 86400), // 24 hours
     ],
 
+    'password_reset' => [
+        // Validity window (seconds) for a reset: the delivery_ref must be materialised and the token
+        // redeemed within it.
+        'ttl' => (int) env('IDENTITY_PASSWORD_RESET_TTL', 3600), // 1 hour
+    ],
+
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).
     'platform' => [
         'terraform' => env('UNERO_PLATFORM_TERRAFORM', 'https://github.com/nellyurh/unero-platform-terraform'),

@@ -1,0 +1,13 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Application\PasswordReset\Command;
+
+final readonly class RequestPasswordResetCommand
+{
+    public function __construct(
+        public string $email,
+        public string $requestId,
+    ) {}
+}

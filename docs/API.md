@@ -22,6 +22,8 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | POST | `/identity/login` | public | — | Verify credentials → `200 { data: Principal + access_token, refresh_token, token_type, expires_in, refresh_expires_in }` |
 | POST | `/identity/service/token` | public | — | Client-credentials grant → `200 { data: access_token, token_type, expires_in, scope }` (service token) |
 | POST | `/identity/email/verify` | public | — | Verify email with a token → `200 { data: user_id, verified }` |
+| POST | `/identity/auth/password/reset-request` | public | — | Start a reset → `202 { data: status }` (always, no enumeration) |
+| POST | `/identity/internal/password-reset/deliveries/{ref}/materialize` | actor | — | Exchange a delivery_ref → `200 { data: email, token, expires_at }` (token minted, shown once) |
 | POST | `/identity/users/{id}/email/verification-request` | actor | ✅ | Issue a verification token → `200 { data: token, expires_at }` (token shown once) |
 | POST | `/identity/auth/refresh` | public | — | Rotate the token pair → `200 { data: TokenPair }` (reuse → AUTH_012, family revoked) |
 | POST | `/identity/auth/logout` | public | — | Revoke the session family → `200 { data: { user_id } }` (idempotent) |
@@ -83,6 +85,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `APIKEY_003` | 401 | Invalid API key (missing/malformed/unknown/expired/revoked; generic, no enumeration) |
 | `APIKEY_004` | 409 | A revoked API key cannot be rotated |
 | `VERIFICATION_001` | 400 | Email verification token is invalid, used, or expired |
+| `RESET_001` | 404 | Password reset delivery reference is invalid, already materialised, or expired |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -135,6 +138,20 @@ token is consumed, no second event).
 > **synchronous return-to-trusted-caller** model rather than putting the token in an event, honoring
 > "no plaintext tokens in event payloads." Password reset (2H-b) is event-driven with a 202/no-token
 > response for enumeration resistance, so its delivery bridge will need explicit confirmation.
+
+## Password reset (request + delivery)
+Two-phase, so the token honours "no plaintext tokens in events" while still returning `202` with no
+token (no enumeration). `POST /auth/password/reset-request {email}` always returns `202`: if the email
+matches a user, any outstanding reset is superseded and a new one is created carrying an opaque
+`delivery_ref`, and `PasswordResetRequested {user_id, delivery_ref}` is emitted (no email, no token).
+The token does **not** exist yet.
+
+The notification service consumes that event and calls
+`POST /internal/password-reset/deliveries/{ref}/materialize` (gateway-authenticated). Only then is the
+raw token minted — its hash stored, the raw value returned once alongside the recipient email so the
+service can send the link. A `delivery_ref` materialises exactly once; unknown/used/expired refs
+return `404 RESET_001`. Completing the reset (redeem token → change password → revoke sessions →
+`PasswordChanged`) is the next slice (2H-b2).
 
 ## Service tokens (client credentials)
 Platform services authenticate to each other with their own rotatable credential rather than a

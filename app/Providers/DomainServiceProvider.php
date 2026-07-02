@@ -10,6 +10,7 @@ use App\Application\Auth\LoginUser;
 use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
 use App\Application\EmailVerification\RequestEmailVerification;
+use App\Application\PasswordReset\RequestPasswordReset;
 use App\Application\Port\ApiKeyGenerator;
 use App\Application\Port\AuditWriter;
 use App\Application\Port\AuthorizationResolver;
@@ -24,6 +25,7 @@ use App\Application\Port\TransactionManager;
 use App\Application\User\AuthenticateUser;
 use App\Domain\Identity\ApiKey\Repository\ApiKeyRepository;
 use App\Domain\Identity\EmailVerification\Repository\EmailVerificationTokenRepository;
+use App\Domain\Identity\PasswordReset\Repository\PasswordResetRepository;
 use App\Domain\Identity\Permission\Repository\PermissionRepository;
 use App\Domain\Identity\Role\Repository\RoleRepository;
 use App\Domain\Identity\ServiceAccount\Repository\ServiceAccountRepository;
@@ -36,6 +38,7 @@ use App\Infrastructure\Clock\SystemClock;
 use App\Infrastructure\Outbox\EventBridgePublisher;
 use App\Infrastructure\Persistence\Repository\EloquentApiKeyRepository;
 use App\Infrastructure\Persistence\Repository\EloquentEmailVerificationTokenRepository;
+use App\Infrastructure\Persistence\Repository\EloquentPasswordResetRepository;
 use App\Infrastructure\Persistence\Repository\EloquentPermissionRepository;
 use App\Infrastructure\Persistence\Repository\EloquentRefreshTokenRepository;
 use App\Infrastructure\Persistence\Repository\EloquentRoleRepository;
@@ -75,6 +78,7 @@ final class DomainServiceProvider extends ServiceProvider
         $this->app->bind(ApiKeyRepository::class, EloquentApiKeyRepository::class);
         $this->app->bind(ApiKeyGenerator::class, RandomApiKeyGenerator::class);
         $this->app->bind(EmailVerificationTokenRepository::class, EloquentEmailVerificationTokenRepository::class);
+        $this->app->bind(PasswordResetRepository::class, EloquentPasswordResetRepository::class);
         $this->app->bind(RefreshTokenRepository::class, EloquentRefreshTokenRepository::class);
         $this->app->bind(TokenGenerator::class, RandomRefreshTokenGenerator::class);
         $this->app->bind(TokenBlacklist::class, CacheTokenBlacklist::class);
@@ -213,6 +217,21 @@ final class DomainServiceProvider extends ServiceProvider
                 $app->make(Clock::class),
                 $app->make(TransactionManager::class),
                 $verification['ttl'],
+            );
+        });
+
+        $this->app->bind(RequestPasswordReset::class, static function (Application $app): RequestPasswordReset {
+            /** @var array{ttl:int} $reset */
+            $reset = config('unero.password_reset');
+
+            return new RequestPasswordReset(
+                $app->make(UserRepository::class),
+                $app->make(PasswordResetRepository::class),
+                $app->make(TokenGenerator::class),
+                $app->make(AuditWriter::class),
+                $app->make(Clock::class),
+                $app->make(TransactionManager::class),
+                $reset['ttl'],
             );
         });
 

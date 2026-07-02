@@ -145,6 +145,61 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
 
+  /identity/auth/password/reset-request:
+    post:
+      summary: Start a password reset
+      description: Public. Always returns 202 whether or not the email matches an account (no enumeration). Emits PasswordResetRequested carrying only an opaque delivery_ref.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RequestPasswordResetRequest" }
+      responses:
+        "202":
+          description: accepted (no enumeration)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [status]
+                    properties:
+                      status: { type: string, example: accepted }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /identity/internal/password-reset/deliveries/{ref}/materialize:
+    post:
+      summary: Materialise a reset delivery (internal callback)
+      description: Gateway-authenticated. The notification service exchanges the delivery_ref from PasswordResetRequested for the freshly-minted token and recipient email. Single-use per ref.
+      parameters:
+        - name: ref
+          in: path
+          required: true
+          schema: { type: string }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+      responses:
+        "200":
+          description: token minted (shown once)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [email, token, expires_at]
+                    properties:
+                      email: { type: string, format: email }
+                      token: { type: string, description: raw reset token, shown once }
+                      expires_at: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /identity/auth/refresh:
     post:
       summary: Rotate an access + refresh token pair
@@ -996,6 +1051,11 @@ components:
       required: [token]
       properties:
         token: { type: string, description: the raw email verification token }
+    RequestPasswordResetRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email }
     ServiceTokenData:
       type: object
       required: [access_token, token_type, expires_in, scope]

@@ -7,6 +7,7 @@ use App\Interfaces\Http\Controller\AuthController;
 use App\Interfaces\Http\Controller\EmailVerificationController;
 use App\Interfaces\Http\Controller\HealthController;
 use App\Interfaces\Http\Controller\JwksController;
+use App\Interfaces\Http\Controller\PasswordResetController;
 use App\Interfaces\Http\Controller\PermissionController;
 use App\Interfaces\Http\Controller\RoleController;
 use App\Interfaces\Http\Controller\ServiceAccountController;
@@ -26,6 +27,7 @@ Route::prefix('identity')->group(function (): void {
     Route::post('login', [AuthController::class, 'login']);
     Route::post('service/token', [AuthController::class, 'serviceToken']);
     Route::post('email/verify', [EmailVerificationController::class, 'verify']);
+    Route::post('auth/password/reset-request', [PasswordResetController::class, 'requestReset']);
     Route::post('auth/refresh', [AuthController::class, 'refresh']);
     Route::post('auth/logout', [AuthController::class, 'logout']);
 
@@ -34,6 +36,11 @@ Route::prefix('identity')->group(function (): void {
         // Token introspection for services doing high-value operations (RFC 7662 shape):
         // stateless verify + jti-denylist check. Not idempotency-keyed (a pure read).
         Route::post('tokens/introspect', [AuthController::class, 'introspect']);
+
+        // Password reset delivery: the notification service exchanges a delivery_ref for the
+        // freshly-minted token + email. Authenticated internal callback; naturally single-use.
+        Route::post('internal/password-reset/deliveries/{ref}/materialize', [PasswordResetController::class, 'materialize'])
+            ->where('ref', '[A-Za-z0-9_-]+');
 
         Route::get('users/{id}', [UserController::class, 'show'])->whereUlid('id');
         Route::get('users', [UserController::class, 'lookup']);
