@@ -48,6 +48,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | POST | `/identity/service-accounts/{id}/disable` | actor | ✅ | Disable → `200 { data: ServiceAccountView }` |
 | GET | `/identity/api-keys?owner_type=&owner_id=` | actor | — | List an owner's API keys → `200 { data: [ApiKeyView] }` (no secrets) |
 | POST | `/identity/api-keys` | actor | ✅ | Create → `201 { data: ApiKeyView + key }` (full key shown once) |
+| POST | `/identity/api-keys/{id}/rotate` | actor | ✅ | Rotate → `200 { data: ApiKeyView + key, replaced_key_id, grace_expires_at }` |
 | DELETE | `/identity/api-keys/{id}` | actor | ✅ | Revoke → `200 { data: ApiKeyView }` |
 
 ## Error codes (this surface)
@@ -78,6 +79,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `APIKEY_001` | 404 | API key not found |
 | `APIKEY_002` | 403 | API key lacks the scope required by the endpoint |
 | `APIKEY_003` | 401 | Invalid API key (missing/malformed/unknown/expired/revoked; generic, no enumeration) |
+| `APIKEY_004` | 409 | A revoked API key cannot be rotated |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -139,6 +141,13 @@ requires that scope, returning `403 APIKEY_002` if absent. On success it advance
 (throttled by `IDENTITY_API_KEY_TOUCH_THROTTLE`, default 1h) and records the acting principal
 (`type=api_key`). The prefix is public by design, so lookup is not treated as sensitive; the secret
 comparison is the constant-time gate.
+
+**Rotation (zero downtime).** `POST /api-keys/{id}/rotate` issues a fresh key that inherits the
+rotated key's owner, name and scopes, and returns its full string once. The rotated key isn't killed
+immediately — its expiry is capped at `now + IDENTITY_API_KEY_ROTATION_GRACE` (default 24h) and it
+keeps authenticating until then, so in-flight clients migrate without an outage; after the window it
+passively expires. A revoked key cannot be rotated (`APIKEY_004`). Rotation emits `ApiKeyRotated`
+(old → replacement) and `ApiKeyCreated` (new).
 
 ## Refresh & sessions
 `login` also issues a **rotating refresh token** — an opaque 256-bit secret returned once and

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Application\ApiKey\CreateApiKey;
+use App\Application\ApiKey\RotateApiKey;
 use App\Application\Auth\LoginUser;
 use App\Application\Auth\LogoutUser;
 use App\Application\Auth\RefreshTokens;
@@ -178,6 +179,21 @@ final class DomainServiceProvider extends ServiceProvider
                 $app->make(Clock::class),
                 $app->make(TransactionManager::class),
                 $apiKey['env'],
+            );
+        });
+
+        $this->app->bind(RotateApiKey::class, static function (Application $app): RotateApiKey {
+            /** @var array{env:string,rotation_grace:int} $apiKey */
+            $apiKey = config('unero.api_key');
+
+            return new RotateApiKey(
+                $app->make(ApiKeyRepository::class),
+                $app->make(ApiKeyGenerator::class),
+                $app->make(AuditWriter::class),
+                $app->make(Clock::class),
+                $app->make(TransactionManager::class),
+                $apiKey['env'],
+                $apiKey['rotation_grace'],
             );
         });
 

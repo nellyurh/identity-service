@@ -6,6 +6,8 @@ namespace App\Domain\Identity\ApiKey;
 
 use App\Domain\Identity\ApiKey\Event\ApiKeyCreated;
 use App\Domain\Identity\ApiKey\Event\ApiKeyRevoked;
+use App\Domain\Identity\ApiKey\Event\ApiKeyRotated;
+use App\Domain\Identity\ApiKey\Exception\ApiKeyNotActive;
 use App\Domain\Identity\ApiKey\ValueObject\ApiKeyId;
 use App\Domain\Identity\ApiKey\ValueObject\ApiKeyOwner;
 use App\Domain\Identity\ApiKey\ValueObject\ApiKeyPrefix;
@@ -33,7 +35,7 @@ final class ApiKey
         private readonly string $name,
         private readonly ApiKeyOwner $owner,
         private readonly ScopeCollection $scopes,
-        private readonly ?DateTimeImmutable $expiresAt,
+        private ?DateTimeImmutable $expiresAt,
         private ?DateTimeImmutable $lastUsedAt,
         private ?DateTimeImmutable $revokedAt,
         private readonly string $createdBy,
@@ -96,6 +98,25 @@ final class ApiKey
         $this->updatedAt = $now;
 
         $this->recordedEvents[] = new ApiKeyRevoked($this->id->value, $now->format(DATE_RFC3339));
+    }
+
+    /**
+     * Enter the rotation grace window: the key stays usable until $graceUntil (its remaining life is
+     * capped — never extended — to that instant), after which it passively expires. A fresh key
+     * ($replacementId) is issued separately by the caller. A revoked key cannot be rotated.
+     */
+    public function markRotated(ApiKeyId $replacementId, DateTimeImmutable $graceUntil, DateTimeImmutable $now): void
+    {
+        if ($this->revokedAt instanceof DateTimeImmutable) {
+            throw ApiKeyNotActive::cannotRotate($this->id->value);
+        }
+
+        if (! $this->expiresAt instanceof DateTimeImmutable || $this->expiresAt > $graceUntil) {
+            $this->expiresAt = $graceUntil;
+        }
+        $this->updatedAt = $now;
+
+        $this->recordedEvents[] = new ApiKeyRotated($this->id->value, $replacementId->value, $now->format(DATE_RFC3339));
     }
 
     /** Constant-time verification of the presented secret against the stored hash. */

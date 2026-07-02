@@ -70,6 +70,7 @@ Route::prefix('identity')->group(function (): void {
             Route::post('service-accounts/{id}/rotate', [ServiceAccountController::class, 'rotate'])->whereUlid('id');
             Route::post('service-accounts/{id}/disable', [ServiceAccountController::class, 'disable'])->whereUlid('id');
             Route::post('api-keys', [ApiKeyController::class, 'store']);
+            Route::post('api-keys/{id}/rotate', [ApiKeyController::class, 'rotate'])->whereUlid('id');
             Route::delete('api-keys/{id}', [ApiKeyController::class, 'destroy'])->whereUlid('id');
         });
     });

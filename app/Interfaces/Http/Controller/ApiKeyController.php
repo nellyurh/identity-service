@@ -6,10 +6,12 @@ namespace App\Interfaces\Http\Controller;
 
 use App\Application\ApiKey\Command\CreateApiKeyCommand;
 use App\Application\ApiKey\Command\RevokeApiKeyCommand;
+use App\Application\ApiKey\Command\RotateApiKeyCommand;
 use App\Application\ApiKey\CreateApiKey;
 use App\Application\ApiKey\ListApiKeys;
 use App\Application\ApiKey\Result\ApiKeyView;
 use App\Application\ApiKey\RevokeApiKey;
+use App\Application\ApiKey\RotateApiKey;
 use App\Interfaces\Http\Request\CreateApiKeyRequest;
 use App\Interfaces\Http\Request\ListApiKeysRequest;
 use Illuminate\Http\JsonResponse;
@@ -65,6 +67,21 @@ final class ApiKeyController
         ));
 
         return response()->json(['data' => $view->toArray()]);
+    }
+
+    public function rotate(string $id, Request $request, RotateApiKey $handler): JsonResponse
+    {
+        $result = $handler->handle(new RotateApiKeyCommand(
+            apiKeyId: $id,
+            actorId: $this->actorId($request),
+            requestId: (string) $request->attributes->get('request_id'),
+        ));
+
+        return response()->json(['data' => $result->replacement->toArray() + [
+            'key' => $result->fullKey,
+            'replaced_key_id' => $result->rotatedKeyId,
+            'grace_expires_at' => $result->graceExpiresAt,
+        ]]);
     }
 
     private function actorId(Request $request): string

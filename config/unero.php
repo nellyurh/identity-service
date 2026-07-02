@@ -42,6 +42,8 @@ return [
         'env' => (string) env('IDENTITY_API_KEY_ENV', 'live'),
         // last_used_at is only rewritten when it is older than this many seconds (hot-key throttle).
         'touch_throttle' => (int) env('IDENTITY_API_KEY_TOUCH_THROTTLE', 3600),
+        // On rotation the old key stays usable for this many seconds before it passively expires.
+        'rotation_grace' => (int) env('IDENTITY_API_KEY_ROTATION_GRACE', 86400), // 24 hours
     ],
 
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).

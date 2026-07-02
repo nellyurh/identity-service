@@ -576,6 +576,43 @@ paths:
         "401": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /identity/api-keys/{id}/rotate:
+    post:
+      summary: Rotate an API key (zero downtime)
+      description: >
+        Issues a fresh key inheriting the rotated key's owner, name and scopes (full key in data.key,
+        shown once). The rotated key stays valid until data.grace_expires_at, then passively expires.
+        A revoked key cannot be rotated (APIKEY_004).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { $ref: "#/components/schemas/Ulid" }
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorType"
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: rotated (new full key shown once)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    allOf:
+                      - $ref: "#/components/schemas/ApiKeyView"
+                      - type: object
+                        required: [key, replaced_key_id]
+                        properties:
+                          key: { type: string, description: full replacement key, shown once }
+                          replaced_key_id: { $ref: "#/components/schemas/Ulid" }
+                          grace_expires_at: { type: string, format: date-time, nullable: true }
+        "401": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+
   /identity/change-password:
     post:
       summary: Change own password (self-service)
