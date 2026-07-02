@@ -1,0 +1,3 @@
+[submodule "schemas/shared"]
+	path = schemas/shared
+	url = https://github.com/nellyurh/unero-shared-schemas.git

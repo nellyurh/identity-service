@@ -1,0 +1,12 @@
+/vendor
+/node_modules
+/storage/*.key
+/storage/logs/*.log
+/storage/infection.log
+.env
+.env.backup
+.phpunit.result.cache
+.phpunit.cache
+database/database.sqlite
+.DS_Store
+/storage/phpstan

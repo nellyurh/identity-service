@@ -1,0 +1,42 @@
+openapi: 3.1.0
+info:
+  title: identity-service API
+  version: 0.1.0
+  description: >
+    Unero Identity Service: authentication, authorization (RBAC), service accounts, API
+    keys, sessions, and tokens. Public authentication endpoints and an internal admin
+    surface (callers present a resolved identity via gateway headers). Shared components
+    are referenced from unero-shared-schemas. Paths grow per delivery milestone.
+servers:
+  - url: https://identity.internal.unero.com
+paths:
+  /healthz:
+    get:
+      summary: Liveness
+      responses:
+        "200": { description: alive }
+  /readyz:
+    get:
+      summary: Readiness (checks PostgreSQL and Redis)
+      responses:
+        "200": { description: ready }
+        "503": { description: not ready }
+components:
+  responses:
+    Error:
+      description: Standard error envelope (unero-shared-schemas error-envelope)
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error, request_id]
+            properties:
+              error:
+                type: object
+                required: [code, message]
+                properties:
+                  code: { type: string, pattern: "^[A-Z]+_[0-9]{3}$" }
+                  message: { type: string }
+                  detail: { type: object }
+              request_id: { type: string }
+              docs_url: { type: string }

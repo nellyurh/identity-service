@@ -1,0 +1,14 @@
+name: cd
+on:
+  push:
+    branches: [main]
+jobs:
+  cd:
+    uses: nellyurh/platform-github/.github/workflows/php-service-cd.yml@v1
+    with:
+      service-name: identity-service
+      aws-region: af-south-1
+      is-money-service: false
+    secrets:
+      staging-role-arn: ${{ secrets.STAGING_ROLE_ARN }}
+      production-role-arn: ${{ secrets.PRODUCTION_ROLE_ARN }}

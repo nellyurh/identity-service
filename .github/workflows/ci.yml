@@ -1,0 +1,11 @@
+name: ci
+on: [pull_request]
+jobs:
+  ci:
+    uses: nellyurh/platform-github/.github/workflows/php-service-ci.yml@v1
+    with:
+      php-version: "8.3"
+      coverage-domain-min: 90
+      coverage-services-min: 80
+    secrets:
+      packages-token: ${{ secrets.PACKAGES_READ_TOKEN }}
