@@ -35,6 +35,20 @@ final readonly class EloquentRecoveryCodeRepository implements RecoveryCodeRepos
         );
     }
 
+    public function consume(RecoveryCode $code, DateTimeImmutable $now): bool
+    {
+        $won = RecoveryCodeModel::query()
+            ->whereKey($code->id)
+            ->whereNull('used_at')
+            ->update(['used_at' => $now]) === 1;
+
+        if ($won) {
+            $code->consume($now); // keep the in-memory entity consistent
+        }
+
+        return $won;
+    }
+
     public function findByHashForUser(UserId $userId, string $codeHash): ?RecoveryCode
     {
         $model = RecoveryCodeModel::query()

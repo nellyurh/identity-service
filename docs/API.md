@@ -207,8 +207,16 @@ is opaque, single-use, short-lived (`IDENTITY_MFA_CHALLENGE_TTL`, default 5 min)
 hash — being opaque it can never be mistaken for an access token. The client completes login with
 `POST /login/mfa { challenge_token, code }`: the code is verified against the active credential, the
 challenge is consumed, and a normal session (access + refresh) is issued via the same path as a direct
-login. Invalid/used/expired challenge → `401 MFA_004`; wrong code → `422 MFA_002`. (Per-attempt MFA
-lockout is deferred to the 2I hardening pass.)
+login. Invalid/used/expired challenge → `401 MFA_004`; wrong code → `422 MFA_002`.
+
+**Per-challenge attempt cap.** Wrong second-factor submissions (TOTP or recovery code) count against
+the challenge; at `IDENTITY_MFA_MAX_CHALLENGE_ATTEMPTS` (default 5) it is invalidated — even the
+correct code then returns `MFA_004` — forcing a fresh password login, which re-engages the rate
+limits and account lockout. This closes per-challenge brute force of the 6-digit TOTP space.
+
+**Atomic single-use.** Challenge and recovery-code consumption are conditional updates
+(`... WHERE used_at IS NULL`): of two concurrent completions, exactly one wins; the loser sees
+`MFA_004` (challenge) / `MFA_002` (recovery code).
 
 **Disabling.** `POST /users/{id}/mfa/totp/disable` turns off the active credential and emits
 `MFADisabled`; subsequent logins stop challenging. It's idempotent — with no active credential it

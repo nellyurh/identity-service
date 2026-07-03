@@ -6,6 +6,7 @@ namespace App\Providers;
 
 use App\Application\ApiKey\CreateApiKey;
 use App\Application\ApiKey\RotateApiKey;
+use App\Application\Auth\CompleteMfaLogin;
 use App\Application\Auth\IssueUserSession;
 use App\Application\Auth\LoginUser;
 use App\Application\Auth\LogoutUser;
@@ -195,6 +196,25 @@ final class DomainServiceProvider extends ServiceProvider
             $mfa = config('unero.mfa');
 
             return new GenerateRecoveryCodes($app->make(RecoveryCodeRepository::class), $mfa['recovery_code_count']);
+        });
+
+        $this->app->bind(CompleteMfaLogin::class, static function (Application $app): CompleteMfaLogin {
+            /** @var array{max_challenge_attempts:int} $mfa */
+            $mfa = config('unero.mfa');
+
+            return new CompleteMfaLogin(
+                $app->make(MfaChallengeRepository::class),
+                $app->make(TotpCredentialRepository::class),
+                $app->make(RecoveryCodeRepository::class),
+                $app->make(TotpProvider::class),
+                $app->make(SecretCipher::class),
+                $app->make(IssueUserSession::class),
+                $app->make(UserRepository::class),
+                $app->make(AuditWriter::class),
+                $app->make(Clock::class),
+                $app->make(TransactionManager::class),
+                $mfa['max_challenge_attempts'],
+            );
         });
 
         $this->app->bind(RefreshTokens::class, static function (Application $app): RefreshTokens {

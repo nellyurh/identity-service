@@ -24,8 +24,23 @@ final readonly class EloquentMfaChallengeRepository implements MfaChallengeRepos
                 'expires_at' => $challenge->expiresAt(),
                 'used_at' => $challenge->usedAt(),
                 'created_at' => $challenge->createdAt(),
+                'failed_attempts' => $challenge->failedAttempts(),
             ],
         );
+    }
+
+    public function consume(MfaChallenge $challenge, DateTimeImmutable $now): bool
+    {
+        $won = MfaChallengeModel::query()
+            ->whereKey($challenge->id)
+            ->whereNull('used_at')
+            ->update(['used_at' => $now]) === 1;
+
+        if ($won) {
+            $challenge->consume($now); // keep the in-memory aggregate consistent
+        }
+
+        return $won;
     }
 
     public function findByHash(string $tokenHash): ?MfaChallenge
@@ -42,6 +57,7 @@ final readonly class EloquentMfaChallengeRepository implements MfaChallengeRepos
             $this->toImmutable($model->expires_at) ?? new DateTimeImmutable,
             $this->toImmutable($model->used_at),
             $this->toImmutable($model->created_at) ?? new DateTimeImmutable,
+            $model->failed_attempts,
         );
     }
 

@@ -66,6 +66,8 @@ return [
         'challenge_ttl' => (int) env('IDENTITY_MFA_CHALLENGE_TTL', 300), // 5 minutes
         // Number of one-time recovery codes issued per batch.
         'recovery_code_count' => (int) env('IDENTITY_MFA_RECOVERY_CODE_COUNT', 10),
+        // Wrong second-factor submissions tolerated per challenge before it is invalidated.
+        'max_challenge_attempts' => (int) env('IDENTITY_MFA_MAX_CHALLENGE_ATTEMPTS', 5),
     ],
 
     'lockout' => [

@@ -25,8 +25,11 @@ use DateTimeImmutable;
 /**
  * Complete an MFA login: verify the challenge, then verify the second factor — either a TOTP code
  * against the active credential, or a one-time recovery code — before consuming the challenge and
- * issuing the session. A recovery code is consumed single-use. Invalid/expired challenge -> MFA_004;
- * wrong code / spent-or-unknown recovery code -> MFA_002.
+ * issuing the session. Wrong submissions count against the challenge; at the per-challenge cap it is
+ * invalidated, forcing a fresh password login (re-engaging rate limits and account lockout).
+ * Challenge and recovery-code consumption are ATOMIC (conditional single-use updates), so two
+ * concurrent completions cannot both win. Invalid/expired/exhausted challenge -> MFA_004; wrong code /
+ * spent-or-unknown recovery code -> MFA_002.
  */
 final readonly class CompleteMfaLogin
 {
@@ -41,6 +44,7 @@ final readonly class CompleteMfaLogin
         private AuditWriter $audit,
         private Clock $clock,
         private TransactionManager $tx,
+        private int $maxChallengeAttempts,
     ) {}
 
     public function handle(CompleteMfaLoginCommand $c): LoginResult
@@ -62,12 +66,12 @@ final readonly class CompleteMfaLogin
         $user = $this->users->getById($challenge->userId);
 
         return $this->tx->transactional(function () use ($c, $challenge, $recoveryCode, $user, $now): LoginResult {
-            $challenge->consume($now);
-            $this->challenges->save($challenge);
+            if (! $this->challenges->consume($challenge, $now)) {
+                throw MfaChallengeInvalid::create(); // a concurrent completion already spent it
+            }
 
-            if ($recoveryCode instanceof RecoveryCode) {
-                $recoveryCode->consume($now);
-                $this->recoveryCodes->save($recoveryCode);
+            if ($recoveryCode instanceof RecoveryCode && ! $this->recoveryCodes->consume($recoveryCode, $now)) {
+                throw TotpCodeInvalid::create(); // a concurrent request already spent this code
             }
 
             $result = $this->session->issue($user->id->value, $user->status()->value, $user->isEmailVerified(), $c->requestId, $now);
@@ -85,7 +89,7 @@ final readonly class CompleteMfaLogin
         $code = $this->recoveryCodes->findByHashForUser($challenge->userId, $hash);
 
         if (! $code instanceof RecoveryCode || ! $code->isUsable()) {
-            $this->audit->record('login.mfa_failed', $challenge->userId->value, 'user:'.$challenge->userId->value, [], ['factor' => 'recovery_code'], $requestId, null);
+            $this->penalize($challenge, $requestId, 'recovery_code');
             throw TotpCodeInvalid::create();
         }
 
@@ -100,9 +104,20 @@ final readonly class CompleteMfaLogin
         }
 
         if (! $this->totp->verify($this->cipher->decrypt($credential->encryptedSecret()), $code, $now)) {
-            $this->audit->record('login.mfa_failed', $challenge->userId->value, 'user:'.$challenge->userId->value, [], ['factor' => 'totp'], $requestId, null);
+            $this->penalize($challenge, $requestId, 'totp');
             throw TotpCodeInvalid::create();
         }
+    }
+
+    /** Count a wrong submission against the challenge (invalidating it at the cap) and audit it. */
+    private function penalize(MfaChallenge $challenge, string $requestId, string $factor): void
+    {
+        $this->tx->transactional(function () use ($challenge): void {
+            $challenge->recordFailedAttempt($this->maxChallengeAttempts, $this->clock->now());
+            $this->challenges->save($challenge);
+        });
+
+        $this->audit->record('login.mfa_failed', $challenge->userId->value, 'user:'.$challenge->userId->value, [], ['factor' => $factor], $requestId, null);
     }
 
     private function normalize(string $code): string
