@@ -27,6 +27,7 @@ resource "aws_ecs_task_definition" "this" {
         { name = "DB_HOST", value = local.platform.aurora_endpoint },
         { name = "DB_PORT", value = "5432" },
         { name = "DB_DATABASE", value = "unero" },
+        { name = "DB_SSLMODE", value = "require" },
         { name = "DB_SCHEMA", value = "identity" },
         { name = "REDIS_HOST", value = local.platform.redis_endpoint },
         { name = "REDIS_PORT", value = "6379" },
@@ -35,13 +36,16 @@ resource "aws_ecs_task_definition" "this" {
         { name = "AWS_DEFAULT_REGION", value = var.region },
       ]
 
-      # Values injected by ECS from Secrets Manager at task start (ADR-017). The JSON key
-      # suffix (:username:: etc.) is NOT used: each secret is a single opaque value the
-      # app parses, except database which is a JSON doc the entrypoint maps to env.
+      # Values injected by ECS from Secrets Manager at task start (ADR-017), mapped to the
+      # EXACT env names the app reads (config/database.php, config/unero.php). JSON-key
+      # extraction (arn:key::) pulls individual fields from JSON secrets.
       secrets = [
-        { name = "DB_CREDENTIALS_JSON", valueFrom = local.secret_arns["database"] },
+        { name = "DB_USERNAME", valueFrom = "${local.secret_arns["database"]}:username::" },
+        { name = "DB_PASSWORD", valueFrom = "${local.secret_arns["database"]}:password::" },
         { name = "REDIS_PASSWORD", valueFrom = local.secret_arns["redis"] },
-        { name = "JWT_SIGNING_KEYS_JSON", valueFrom = local.secret_arns["jwt-signing-keys"] },
+        { name = "IDENTITY_JWT_KID", valueFrom = "${local.secret_arns["jwt-signing-keys"]}:kid::" },
+        { name = "IDENTITY_JWT_PRIVATE_KEY", valueFrom = "${local.secret_arns["jwt-signing-keys"]}:private_key::" },
+        { name = "IDENTITY_JWT_PUBLIC_KEY", valueFrom = "${local.secret_arns["jwt-signing-keys"]}:public_key::" },
         { name = "APP_KEY", valueFrom = local.secret_arns["app-key"] },
       ]
 
