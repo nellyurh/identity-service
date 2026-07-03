@@ -26,4 +26,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --retries=3 \
     CMD php -r "exit(@file_get_contents('http://127.0.0.1:8080/healthz') ? 0 : 1);"
 
-CMD ["php", "-S", "0.0.0.0:8080", "-t", "public"]
+CMD ["php", "-S", "0.0.0.0:8080", "-t", "public", "public/router.php"]
