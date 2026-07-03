@@ -32,28 +32,38 @@ other engines synchronously on the auth hot path.
 PostgreSQL (Aurora Serverless v2) for state; Redis (ElastiCache) for sessions, token cache,
 and rate limiting; EventBridge for egress. All provisioned by `unero-platform-terraform`.
 
-## Application layer — use cases (milestone 2B)
+## Domain map (v1.0.0-rc)
 
-Application services are thin, `final readonly` orchestrators that depend only on ports
-(repository interfaces, `PasswordHasher`, `AuditWriter`, `Clock`) — never on Eloquent or
-HTTP. Each takes a `Command` DTO and runs inside a single `DB::transaction`, so the
-aggregate change, the drained domain events (to the outbox), and the audit row commit
-together or not at all.
+| Aggregate / entity | Emits | Notes |
+|---|---|---|
+| `User` | UserRegistered, EmailVerified, PasswordChanged, RoleAssigned/Removed, UserActivated/Disabled, **UserLocked** | lockout counters (`failed_login_count`, temporal `locked_until` — ADR-007) |
+| `Role`, `Permission` | RoleCreated, PermissionGranted/Revoked, PermissionDefined | explicit RBAC; system roles protected |
+| `ServiceAccount` | ServiceAccountCreated/CredentialRotated/Disabled | client-credentials grant |
+| `ApiKey` | ApiKeyCreated/Rotated/Revoked | prefix lookup; grace-window rotation |
+| `RefreshToken` | TokenIssued/Rotated/Revoked/ReuseDetected | family rotation + reuse detection |
+| `PasswordReset` | PasswordResetRequested | two-phase: token minted at materialise time (ADR-002) |
+| `TotpCredential` | MFAEnabled/MFADisabled | secret encrypted at rest (`SecretCipher`) |
+| `EmailVerificationToken`, `MfaChallenge`, `RecoveryCode` | — | one-time credentials; no domain events |
 
-User lifecycle use cases (`app/Application/User/`):
+## Ports (Application) → Adapters (Infrastructure)
 
-| Use case | Emits | Audit action | Notes |
-|----------|-------|--------------|-------|
-| `RegisterUser` | `UserRegistered` | `user.registered` | email + username uniqueness; password hashed via port |
-| `AuthenticateUser` | — | `user.authenticated` / `user.authentication_failed` | credential + status check only; no enumeration; token issuance is a later milestone |
-| `ChangePassword` | `PasswordChanged` | `user.password_changed` | current password proven first |
-| `DisableUser` | `UserDisabled` | `user.disabled` | |
-| `EnableUser` | `UserActivated` | `user.enabled` | a deleted user cannot be re-enabled |
-| `DeleteUser` | — | `user.deleted` | soft delete; retained for audit |
-| `GetUser` | — | — | read-side `UserProfile` projection (by id / email / username) |
+Repositories per aggregate (Eloquent), plus: `PasswordHasher` → Argon2id; `TokenIssuer` /
+`TokenVerifier` / `SigningKeyProvider` → lcobucci JWT + key config; `TokenGenerator` →
+random; `TotpProvider` → self-contained RFC 6238 (ADR-004); `SecretCipher` → Laravel
+encrypter; `RateLimiter` → cache-backed (Redis in prod); `AuditWriter` → append-only DB;
+`Clock`, `TransactionManager`, `AuthorizationResolver`, `ApiKeyGenerator`.
 
-Commands live in `app/Application/User/Command/`, result DTOs in
-`app/Application/User/Result/`. The password plaintext exists only inside a command and is
-handed straight to the `PasswordHasher` port; the domain only ever receives a
-`HashedPassword`. The Argon2id adapter and the Eloquent repositories that back these ports
-arrive in milestone 2C.
+## Security layering (outer → inner)
+
+1. **Rate limiter** — IP + identifier keys, before any credential/DB work (`RATE_001`).
+2. **Account lockout** — 5 consecutive failures → temporal lock, `UserLocked` emitted; all
+   attempts while locked fail generically.
+3. **Enumeration & timing parity** — unknown email burns equivalent hash time; account
+   state revealed only after the password is proven.
+4. **MFA** — opaque single-use challenge, per-challenge attempt cap, recovery codes.
+5. **Atomic one-time credentials** — every consume/materialise is a conditional update;
+   of two concurrent requests exactly one wins (see `docs/RELEASE_AUDIT.md`).
+6. **Headers** — nosniff, frame-deny, no-referrer, deny-all CSP, HSTS; `no-store`
+   everywhere except the deliberately cacheable JWKS.
+
+Decision record: `docs/adr/`. Invariant evidence: `docs/RELEASE_AUDIT.md`.

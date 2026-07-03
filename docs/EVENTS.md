@@ -49,7 +49,10 @@ Envelope: `event_id` (UUIDv7), `event_type` (PascalCase, business-intent), `even
 is family-level and fires on logout, on refresh-token **reuse detection**, or when a security change
 invalidates sessions; `reason` is one of `logout | reuse_detected | password_change`.
 
-Planned (landing per milestone): `SessionRevoked`.
+The catalog above is complete for v1.0.0. A separate `SessionRevoked` event was originally
+planned but is superseded: session revocation is expressed as `TokenRevoked` (one per refresh
+family, with a `reason` — logout, password_change, reuse_detected), which downstream consumers
+already receive.
 
 Note: seeding the built-in roles emits `RoleCreated` and one `PermissionGranted` per seeded grant
 (e.g. `super_admin` emits 22). This is intentional — the grants genuinely occur — and only runs on
