@@ -9,6 +9,7 @@ use App\Interfaces\Http\Middleware\AuthenticateService;
 use App\Interfaces\Http\Middleware\IdempotencyMiddleware;
 use App\Interfaces\Http\Middleware\RateLimitRequests;
 use App\Interfaces\Http\Middleware\RequirePermission;
+use App\Interfaces\Http\Middleware\SecurityHeaders;
 use App\Interfaces\Http\Problem\ErrorEnvelope;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -25,6 +26,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->api(prepend: [
             AuditContext::class,
+        ]);
+        $middleware->api(append: [
+            SecurityHeaders::class,
         ]);
         $middleware->alias([
             'auth.service' => AuthenticateService::class,

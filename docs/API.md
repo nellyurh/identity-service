@@ -171,6 +171,14 @@ the token, and **revokes every one of the user's refresh families** (`Revocation
 one `TokenRevoked` per family) so all existing sessions die. No current-password check.
 Unknown/used/unmaterialised/expired tokens fail generically with `400 RESET_002`.
 
+## Security headers
+Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: no-referrer`, a deny-all `Content-Security-Policy`, and (over TLS)
+`Strict-Transport-Security`. All responses are `Cache-Control: no-store` — token-bearing bodies must
+never sit in a shared cache — **except** responses that explicitly opt into public caching: the JWKS
+endpoint serves `public, max-age=300` so verifiers can cache the public keys (ADR-ID-001), with a TTL
+short enough for key rotation to converge quickly.
+
 ## Rate limiting
 Public credential endpoints are throttled with a fixed window **before any credential or database
 work**, keyed both by caller IP and (when the body carries one) by the targeted identifier

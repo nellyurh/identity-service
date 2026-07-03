@@ -12,6 +12,9 @@ final class JwksController
 {
     public function index(GetJwks $query): JsonResponse
     {
-        return response()->json($query->handle());
+        // Verifiers cache the public keys by this header (ADR-ID-001); 5 minutes keeps rotation
+        // (sign-with-current, verify-against-all-non-retired) converging quickly.
+        return response()->json($query->handle())
+            ->header('Cache-Control', 'public, max-age=300');
     }
 }
