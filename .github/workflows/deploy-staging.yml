@@ -1,0 +1,77 @@
+name: deploy-staging
+
+# Same deployment doctrine as the platform: manual dispatch only, environment-gated,
+# OIDC keyless. Builds the image, pushes to ECR, resolves the DIGEST, then applies the
+# service infra with that digest (deploy-by-digest, never by tag — platform standard).
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: af-south-1
+  ECR_REPO: unero/identity-service
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/unero-staging-identity-service-deploy
+          aws-region: af-south-1
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+          terraform_wrapper: false
+
+      # ECR repo must exist before push; it is Terraform-owned, so create it first with a
+      # targeted apply (idempotent — no-op once it exists).
+      - name: init
+        working-directory: infra/terraform
+        run: terraform init -input=false
+
+      - name: ensure ECR repository
+        working-directory: infra/terraform
+        run: terraform apply -input=false -auto-approve -target=aws_ecr_repository.this -target=aws_ecr_lifecycle_policy.this
+
+      - name: ECR login
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: build and push image
+        id: image
+        run: |
+          REGISTRY="${{ steps.ecr.outputs.registry }}"
+          TAG="${GITHUB_SHA::12}"
+          docker build -t "$REGISTRY/$ECR_REPO:$TAG" .
+          docker push "$REGISTRY/$ECR_REPO:$TAG"
+          DIGEST=$(aws ecr describe-images --repository-name "$ECR_REPO" \
+            --image-ids imageTag="$TAG" \
+            --query 'imageDetails[0].imageDigest' --output text)
+          echo "ref=$REGISTRY/$ECR_REPO@$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Deploying by digest: $REGISTRY/$ECR_REPO@$DIGEST"
+
+      - name: plan
+        working-directory: infra/terraform
+        run: terraform plan -input=false -no-color -out=tfplan -var "image_digest=${{ steps.image.outputs.ref }}"
+
+      - name: apply
+        working-directory: infra/terraform
+        run: terraform apply -input=false -no-color tfplan
+
+      - name: service URL
+        working-directory: infra/terraform
+        run: |
+          echo "ALB: http://$(terraform output -raw alb_dns_name)"
+          echo "Smoke: curl -sf http://$(terraform output -raw alb_dns_name)/health/ready"
