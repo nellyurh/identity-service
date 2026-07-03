@@ -10,3 +10,6 @@
 database/database.sqlite
 .DS_Store
 /storage/phpstan
+
+# Terraform local working dirs (provider binaries — never commit)
+.terraform/
