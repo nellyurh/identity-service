@@ -48,13 +48,16 @@ final readonly class CompletePasswordReset
         $newHash = HashedPassword::fromHash($this->hasher->hash($c->newPassword));
 
         return $this->tx->transactional(function () use ($c, $reset, $newHash, $now): CompletePasswordResetResult {
+            // Atomic single-use: win the reset BEFORE changing the password. Of two concurrent
+            // completions, exactly one changes the password; the loser aborts without mutating.
+            if (! $this->resets->consume($reset, $now)) {
+                throw PasswordResetTokenInvalid::create();
+            }
+
             $user = $this->users->getById($reset->userId);
 
             $user->changePassword($newHash, $now);
             $this->users->save($user);
-
-            $reset->consume($now);
-            $this->resets->save($reset);
 
             $this->refreshTokens->revokeAllForUser($user->id, RevocationReason::PasswordChange, $now);
 

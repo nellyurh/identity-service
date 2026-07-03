@@ -50,6 +50,38 @@ final readonly class EloquentPasswordResetRepository implements PasswordResetRep
         }
     }
 
+    public function materialize(PasswordReset $reset, string $tokenHash, DateTimeImmutable $now): bool
+    {
+        $won = PasswordResetModel::query()
+            ->whereKey($reset->id)
+            ->whereNull('materialized_at')
+            ->whereNull('used_at')
+            ->where('expires_at', '>', $now)
+            ->update(['token_hash' => $tokenHash, 'materialized_at' => $now]) === 1;
+
+        if ($won) {
+            $reset->materialize($tokenHash, $now); // keep the in-memory entity consistent
+        }
+
+        return $won;
+    }
+
+    public function consume(PasswordReset $reset, DateTimeImmutable $now): bool
+    {
+        $won = PasswordResetModel::query()
+            ->whereKey($reset->id)
+            ->whereNotNull('materialized_at')
+            ->whereNull('used_at')
+            ->where('expires_at', '>', $now)
+            ->update(['used_at' => $now]) === 1;
+
+        if ($won) {
+            $reset->consume($now); // keep the in-memory entity consistent
+        }
+
+        return $won;
+    }
+
     public function findByDeliveryRef(string $deliveryRef): ?PasswordReset
     {
         return $this->map(PasswordResetModel::query()->where('delivery_ref', $deliveryRef)->first());

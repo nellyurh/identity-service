@@ -34,6 +34,7 @@ final readonly class EloquentMfaChallengeRepository implements MfaChallengeRepos
         $won = MfaChallengeModel::query()
             ->whereKey($challenge->id)
             ->whereNull('used_at')
+            ->where('expires_at', '>', $now)
             ->update(['used_at' => $now]) === 1;
 
         if ($won) {

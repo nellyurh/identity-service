@@ -43,8 +43,13 @@ final readonly class MaterializePasswordResetDelivery
 
         return $this->tx->transactional(function () use ($c, $reset, $now): MaterializedResetResult {
             $raw = $this->generator->generate();
-            $reset->materialize(hash('sha256', $raw), $now);
-            $this->resets->save($reset);
+
+            // Atomic: exactly one caller can bind a token to this delivery_ref. Without this, two
+            // concurrent materialisations would silently clobber each other's hash — the first
+            // responder would be emailing a token that no longer matches the row.
+            if (! $this->resets->materialize($reset, hash('sha256', $raw), $now)) {
+                throw PasswordResetDeliveryInvalid::create();
+            }
 
             $user = $this->users->getById($reset->userId);
 

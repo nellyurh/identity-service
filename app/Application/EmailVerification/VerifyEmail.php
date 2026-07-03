@@ -39,15 +39,18 @@ final readonly class VerifyEmail
         }
 
         return $this->tx->transactional(function () use ($c, $token, $now): VerifyEmailResult {
+            // Atomic single-use: win the token before mutating anything. A concurrent request that
+            // already consumed it (or an expiry racing the earlier check) aborts here.
+            if (! $this->tokens->consume($token, $now)) {
+                throw EmailVerificationTokenInvalid::create();
+            }
+
             $user = $this->users->getById($token->userId);
 
             if (! $user->isEmailVerified()) {
                 $user->verifyEmail($now);
                 $this->users->save($user);
             }
-
-            $token->markUsed($now);
-            $this->tokens->save($token);
 
             $this->audit->record('email.verified', $user->id->value, 'user:'.$user->id->value, [], [], $c->requestId, null);
 

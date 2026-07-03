@@ -28,6 +28,21 @@ final readonly class EloquentEmailVerificationTokenRepository implements EmailVe
         );
     }
 
+    public function consume(EmailVerificationToken $token, DateTimeImmutable $now): bool
+    {
+        $won = EmailVerificationTokenModel::query()
+            ->whereKey($token->id)
+            ->whereNull('used_at')
+            ->where('expires_at', '>', $now)
+            ->update(['used_at' => $now]) === 1;
+
+        if ($won) {
+            $token->markUsed($now); // keep the in-memory entity consistent
+        }
+
+        return $won;
+    }
+
     public function findByHash(string $tokenHash): ?EmailVerificationToken
     {
         $model = EmailVerificationTokenModel::query()->where('token_hash', $tokenHash)->first();

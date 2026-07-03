@@ -171,6 +171,21 @@ the token, and **revokes every one of the user's refresh families** (`Revocation
 one `TokenRevoked` per family) so all existing sessions die. No current-password check.
 Unknown/used/unmaterialised/expired tokens fail generically with `400 RESET_002`.
 
+## One-time credentials (atomic single-use)
+Every one-shot credential — email verification tokens, password-reset deliveries and tokens, MFA
+challenges, recovery codes — is consumed by a **conditional update**, never SELECT-then-UPDATE:
+
+    UPDATE ... SET used_at = now
+    WHERE id = ? AND used_at IS NULL AND expires_at > now
+
+`rows_affected == 1` means this caller won; `0` means a concurrent request already consumed it (or it
+expired), and the caller receives the credential's generic invalid error. Use cases run the guard
+**first**, inside the transaction, so a lost race aborts before any mutation — of two concurrent
+password-reset completions, exactly one changes the password. Password-reset **materialisation** is
+guarded the same way: exactly one caller can bind a token to a `delivery_ref`, so no responder is ever
+handed a token that a concurrent request silently overwrote. Creating a reset (invalidate previous +
+create) is likewise a single transaction, so at most one active reset exists per user.
+
 ## Security headers
 Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
 `Referrer-Policy: no-referrer`, a deny-all `Content-Security-Policy`, and (over TLS)
@@ -222,9 +237,9 @@ the challenge; at `IDENTITY_MFA_MAX_CHALLENGE_ATTEMPTS` (default 5) it is invali
 correct code then returns `MFA_004` — forcing a fresh password login, which re-engages the rate
 limits and account lockout. This closes per-challenge brute force of the 6-digit TOTP space.
 
-**Atomic single-use.** Challenge and recovery-code consumption are conditional updates
-(`... WHERE used_at IS NULL`): of two concurrent completions, exactly one wins; the loser sees
-`MFA_004` (challenge) / `MFA_002` (recovery code).
+**Atomic single-use.** Challenge and recovery-code consumption are conditional updates: of two
+concurrent completions, exactly one wins; the loser sees `MFA_004` (challenge) / `MFA_002`
+(recovery code). See "One-time credentials" below — this guarantee is uniform across the service.
 
 **Disabling.** `POST /users/{id}/mfa/totp/disable` turns off the active credential and emits
 `MFADisabled`; subsequent logins stop challenging. It's idempotent — with no active credential it
