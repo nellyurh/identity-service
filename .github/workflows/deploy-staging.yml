@@ -54,11 +54,19 @@ jobs:
         run: |
           REGISTRY="${{ steps.ecr.outputs.registry }}"
           TAG="${GITHUB_SHA::12}"
-          docker build -t "$REGISTRY/$ECR_REPO:$TAG" .
-          docker push "$REGISTRY/$ECR_REPO:$TAG"
-          DIGEST=$(aws ecr describe-images --repository-name "$ECR_REPO" \
-            --image-ids imageTag="$TAG" \
-            --query 'imageDetails[0].imageDigest' --output text)
+          # Tags are immutable by design: same commit => same image. If the tag already
+          # exists, reuse its digest instead of rebuilding/repushing (idempotent redeploys).
+          if DIGEST=$(aws ecr describe-images --repository-name "$ECR_REPO" \
+              --image-ids imageTag="$TAG" \
+              --query 'imageDetails[0].imageDigest' --output text 2>/dev/null) && [ "$DIGEST" != "None" ]; then
+            echo "Image for $TAG already in ECR; reusing digest."
+          else
+            docker build -t "$REGISTRY/$ECR_REPO:$TAG" .
+            docker push "$REGISTRY/$ECR_REPO:$TAG"
+            DIGEST=$(aws ecr describe-images --repository-name "$ECR_REPO" \
+              --image-ids imageTag="$TAG" \
+              --query 'imageDetails[0].imageDigest' --output text)
+          fi
           echo "ref=$REGISTRY/$ECR_REPO@$DIGEST" >> "$GITHUB_OUTPUT"
           echo "Deploying by digest: $REGISTRY/$ECR_REPO@$DIGEST"
 
