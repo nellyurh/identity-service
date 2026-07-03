@@ -32,8 +32,10 @@ secret_scan() {
     return $?
   fi
   echo "gitleaks not installed - using grep fallback (private keys, AWS keys, long hex tokens in tracked files)"
-  local hits
-  hits=$(git grep -nE 'BEGIN (RSA|EC|OPENSSH) PRIVATE KEY|AKIA[0-9A-Z]{16}|aws_secret_access_key' -- ':!*.md' ':!schemas/shared' 2>/dev/null || true)
+  local pattern hits
+  # Literals are split with '' so this file can never match its own pattern (self-scan false positive).
+  pattern='BEGIN (RSA|EC|OPENSSH) PRIVATE'' KEY|AKIA''[0-9A-Z]{16}|aws_secret_''access_key'
+  hits=$(git grep -nE "$pattern" -- ':!*.md' ':!schemas/shared' 2>/dev/null || true)
   if [ -n "$hits" ]; then echo "$hits"; return 1; fi
   echo "no high-signal secret patterns found"; return 0
 }
