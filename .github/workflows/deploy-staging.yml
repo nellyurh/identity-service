@@ -43,7 +43,7 @@ jobs:
 
       - name: ensure ECR repository
         working-directory: infra/terraform
-        run: terraform apply -input=false -auto-approve -target=aws_ecr_repository.this -target=aws_ecr_lifecycle_policy.this
+        run: terraform apply -input=false -auto-approve -target=aws_ecr_repository.this -target=aws_ecr_lifecycle_policy.this -var "image_digest=bootstrap-not-used"
 
       - name: ECR login
         id: ecr
