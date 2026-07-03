@@ -51,6 +51,12 @@ Shared schemas are a git submodule at `schemas/shared`. After clone:
   `Cache-Control: public, max-age=300` — verifiers converge within 5 min), switch signing,
   retire the old key after `IDENTITY_JWT_ACCESS_TTL` has elapsed.
 
+## Release gate
+`bash scripts/release-gate.sh` runs the full production-readiness battery (validate, Pint,
+Rector, PHPStan L8, all PHPUnit suites, `composer audit`, secret scan, submodule + clean-tree
+checks; Infection when a coverage driver is present) and prints a PASS/FAIL verdict table.
+Run it on a clean, committed tree; do not tag on anything but PASS.
+
 ## Signals worth alerting on
 - `UserLocked` events in the outbox (brute-force activity per account).
 - `429 RATE_001` rates at the edge (distributed credential stuffing — not written to audit
