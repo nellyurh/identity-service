@@ -43,6 +43,7 @@ Envelope: `event_id` (UUIDv7), `event_type` (PascalCase, business-intent), `even
 | `PasswordResetRequested` | `user_id`, `delivery_ref`, `occurred_at` | `events/PasswordResetRequested.schema.json` |
 | `MFAEnabled` | `user_id`, `method`, `occurred_at` | `events/MFAEnabled.schema.json` |
 | `MFADisabled` | `user_id`, `method`, `occurred_at` | `events/MFADisabled.schema.json` |
+| `UserLocked` | `user_id`, `locked_until`, `occurred_at` | `events/UserLocked.schema.json` |
 
 `TokenIssued` fires on login (new family) and on each refresh rotation (same family). `TokenRevoked`
 is family-level and fires on logout, on refresh-token **reuse detection**, or when a security change

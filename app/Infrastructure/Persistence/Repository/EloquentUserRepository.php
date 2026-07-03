@@ -75,6 +75,8 @@ final readonly class EloquentUserRepository implements UserRepository
                 'status' => $user->status()->value,
                 'authz_version' => $user->authzVersion(),
                 'email_verified_at' => $user->emailVerifiedAt(),
+                'failed_login_count' => $user->failedLoginCount(),
+                'locked_until' => $user->lockedUntil(),
                 'created_at' => $user->createdAt(),
                 'updated_at' => $user->updatedAt(),
             ],
@@ -116,6 +118,8 @@ final readonly class EloquentUserRepository implements UserRepository
             $this->toImmutable($model->updated_at) ?? new DateTimeImmutable,
             $this->roleIds($model->id),
             $model->authz_version,
+            $model->failed_login_count,
+            $this->toImmutable($model->locked_until),
         );
     }
 

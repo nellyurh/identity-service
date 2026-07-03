@@ -42,7 +42,21 @@ final class AuthenticateUserTest extends TestCase
             new RegisterUserCommand('ada@unero.com', 'ada_l', 'correct-horse', 'admin-1', 'user', 'req-0'),
         );
 
-        $this->auth = new AuthenticateUser($this->users, $this->hasher, $this->audit);
+        $this->auth = $this->authAt(new DateTimeImmutable('2026-07-02T10:00:00+00:00'));
+    }
+
+    /** Build the service with the clock fixed at $at (FixedClock is immutable, so expiry tests rebuild). */
+    private function authAt(DateTimeImmutable $at): AuthenticateUser
+    {
+        return new AuthenticateUser(
+            $this->users,
+            $this->hasher,
+            $this->audit,
+            new FixedClock($at),
+            new SyncTransactionManager,
+            5,   // max_attempts
+            900, // lock duration (s)
+        );
     }
 
     public function test_valid_credentials_succeed(): void
@@ -94,5 +108,66 @@ final class AuthenticateUserTest extends TestCase
         // not AccountNotActive — the account's state is never revealed before the password is proven.
         $this->expectException(InvalidCredentials::class);
         $this->auth->handle(new AuthenticateUserCommand('ada@unero.com', 'wrong', 'req-5'));
+    }
+
+    private function failTimes(int $n): void
+    {
+        for ($i = 0; $i < $n; $i++) {
+            try {
+                $this->auth->handle(new AuthenticateUserCommand('ada@unero.com', 'wrong-'.$i, 'req-f'.$i));
+                $this->fail('expected InvalidCredentials');
+            } catch (InvalidCredentials) {
+                // expected
+            }
+        }
+    }
+
+    public function test_account_locks_after_max_failed_attempts(): void
+    {
+        $this->failTimes(5);
+
+        /** @var UserRepository $repo */
+        $repo = $this->users;
+        $user = $repo->findByEmail(new Email('ada@unero.com'));
+        $this->assertTrue($user?->isLocked(new DateTimeImmutable('2026-07-02T10:00:00+00:00')) ?? false);
+
+        // even the CORRECT password is refused while locked, with the same generic error
+        try {
+            $this->auth->handle(new AuthenticateUserCommand('ada@unero.com', 'correct-horse', 'req-l1'));
+            $this->fail('expected InvalidCredentials while locked');
+        } catch (InvalidCredentials) {
+            $this->assertContains('user.authentication_failed', $this->audit->actions());
+        }
+    }
+
+    public function test_four_failures_do_not_lock_and_success_resets_the_counter(): void
+    {
+        $this->failTimes(4);
+
+        $result = $this->auth->handle(new AuthenticateUserCommand('ada@unero.com', 'correct-horse', 'req-s1'));
+        $this->assertSame('active', $result->status);
+
+        /** @var UserRepository $repo */
+        $repo = $this->users;
+        $this->assertSame(0, $repo->findByEmail(new Email('ada@unero.com'))?->failedLoginCount());
+
+        // the counter reset: four MORE failures still don't lock
+        $this->failTimes(4);
+        $this->auth->handle(new AuthenticateUserCommand('ada@unero.com', 'correct-horse', 'req-s2'));
+    }
+
+    public function test_lock_expires_and_login_succeeds_again(): void
+    {
+        $this->failTimes(5);
+
+        // 16 minutes later (lock is 15) the account is usable again
+        $later = $this->authAt(new DateTimeImmutable('2026-07-02T10:16:00+00:00'));
+        $result = $later->handle(new AuthenticateUserCommand('ada@unero.com', 'correct-horse', 'req-e1'));
+
+        $this->assertSame('active', $result->status);
+
+        /** @var UserRepository $repo */
+        $repo = $this->users;
+        $this->assertNull($repo->findByEmail(new Email('ada@unero.com'))?->lockedUntil());
     }
 }

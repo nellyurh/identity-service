@@ -155,6 +155,21 @@ final class DomainServiceProvider extends ServiceProvider
             );
         });
 
+        $this->app->bind(AuthenticateUser::class, static function (Application $app): AuthenticateUser {
+            /** @var array{max_attempts:int,duration:int} $lockout */
+            $lockout = config('unero.lockout');
+
+            return new AuthenticateUser(
+                $app->make(UserRepository::class),
+                $app->make(PasswordHasher::class),
+                $app->make(AuditWriter::class),
+                $app->make(Clock::class),
+                $app->make(TransactionManager::class),
+                $lockout['max_attempts'],
+                $lockout['duration'],
+            );
+        });
+
         $this->app->bind(LoginUser::class, static function (Application $app): LoginUser {
             /** @var array{challenge_ttl:int} $mfa */
             $mfa = config('unero.mfa');

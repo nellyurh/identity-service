@@ -67,7 +67,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 |---|---|---|
 | `VALIDATION_422` | 422 | Request body fails validation (fields in `detail.fields`) |
 | `AUTH_001` | 401 | Missing/invalid actor on an admin endpoint |
-| `AUTH_002` | 401 | Invalid credentials / unknown account on login (no enumeration) |
+| `AUTH_002` | 401 | Invalid credentials / unknown account / temporarily locked account on login (no enumeration) |
 | `USER_001` | 404 | User not found |
 | `USER_004` | 409 | Email already registered |
 | `USER_005` | 409 | Username already taken |
@@ -169,6 +169,15 @@ new_password}` redeems the token by hash, sets the new password (emitting `Passw
 the token, and **revokes every one of the user's refresh families** (`RevocationReason::PasswordChange`,
 one `TokenRevoked` per family) so all existing sessions die. No current-password check.
 Unknown/used/unmaterialised/expired tokens fail generically with `400 RESET_002`.
+
+## Brute-force lockout
+Consecutive failed logins increment a per-account counter; at `IDENTITY_LOCKOUT_MAX_ATTEMPTS`
+(default 5) the account locks for `IDENTITY_LOCKOUT_DURATION` (default 15 min), emitting `UserLocked`.
+While locked, **every** attempt — right or wrong password — returns the same generic `401 AUTH_002`
+without verifying the password or counting further, so the lock neither confirms guessed passwords
+nor reveals account state. The lock self-expires (`locked_until` is temporal, not a status); a
+successful login resets the counter. The unknown-email path burns equivalent hashing time so latency
+doesn't leak account existence.
 
 ## MFA (TOTP)
 Two-step enrollment. `POST /users/{id}/mfa/totp/enroll` generates a base32 secret, stores it

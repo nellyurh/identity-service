@@ -68,6 +68,13 @@ return [
         'recovery_code_count' => (int) env('IDENTITY_MFA_RECOVERY_CODE_COUNT', 10),
     ],
 
+    'lockout' => [
+        // Consecutive failed logins tolerated before the account is temporarily locked.
+        'max_attempts' => (int) env('IDENTITY_LOCKOUT_MAX_ATTEMPTS', 5),
+        // Lock duration in seconds once the threshold is hit.
+        'duration' => (int) env('IDENTITY_LOCKOUT_DURATION', 900), // 15 minutes
+    ],
+
     // Sibling platform repositories (during foundation phase; see UNERO_LINKS.md).
     'platform' => [
         'terraform' => env('UNERO_PLATFORM_TERRAFORM', 'https://github.com/nellyurh/unero-platform-terraform'),
