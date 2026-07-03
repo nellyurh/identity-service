@@ -24,14 +24,14 @@ Route::get('/.well-known/jwks.json', [JwksController::class, 'index']);
 Route::prefix('identity')->group(function (): void {
     // Public authentication surface. Refresh/logout carry no idempotency key: the refresh
     // token is itself single-use, so replay is defined by rotation, not by a client key.
-    Route::post('register', [AuthController::class, 'register'])->middleware('idempotency');
-    Route::post('login', [AuthController::class, 'login']);
-    Route::post('login/mfa', [AuthController::class, 'completeMfa']);
-    Route::post('service/token', [AuthController::class, 'serviceToken']);
-    Route::post('email/verify', [EmailVerificationController::class, 'verify']);
-    Route::post('auth/password/reset-request', [PasswordResetController::class, 'requestReset']);
-    Route::post('auth/password/reset', [PasswordResetController::class, 'reset']);
-    Route::post('auth/refresh', [AuthController::class, 'refresh']);
+    Route::post('register', [AuthController::class, 'register'])->middleware(['idempotency', 'ratelimit:register,10,60']);
+    Route::post('login', [AuthController::class, 'login'])->middleware('ratelimit:login,10,60');
+    Route::post('login/mfa', [AuthController::class, 'completeMfa'])->middleware('ratelimit:mfa,10,60');
+    Route::post('service/token', [AuthController::class, 'serviceToken'])->middleware('ratelimit:service-token,20,60');
+    Route::post('email/verify', [EmailVerificationController::class, 'verify'])->middleware('ratelimit:verify-email,10,60');
+    Route::post('auth/password/reset-request', [PasswordResetController::class, 'requestReset'])->middleware('ratelimit:reset-request,5,60');
+    Route::post('auth/password/reset', [PasswordResetController::class, 'reset'])->middleware('ratelimit:reset,10,60');
+    Route::post('auth/refresh', [AuthController::class, 'refresh'])->middleware('ratelimit:refresh,30,60');
     Route::post('auth/logout', [AuthController::class, 'logout']);
 
     // Internal admin surface — gateway-authenticated (auth.service resolves the actor).

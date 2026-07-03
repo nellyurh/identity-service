@@ -98,6 +98,7 @@ error envelope on failure (`{ error: { code, message, detail? }, request_id }`).
 | `MFA_003` | 404 | No pending MFA enrollment to confirm |
 | `MFA_004` | 401 | MFA challenge is invalid, used, or expired |
 | `MFA_005` | 404 | MFA is not enabled for this user |
+| `RATE_001` | 429 | Too many attempts on a rate-limited endpoint (per IP and per identifier) |
 
 ## Tokens
 `login` issues a short-lived **RS256 access token** (15 min default), signed with the current
@@ -169,6 +170,16 @@ new_password}` redeems the token by hash, sets the new password (emitting `Passw
 the token, and **revokes every one of the user's refresh families** (`RevocationReason::PasswordChange`,
 one `TokenRevoked` per family) so all existing sessions die. No current-password check.
 Unknown/used/unmaterialised/expired tokens fail generically with `400 RESET_002`.
+
+## Rate limiting
+Public credential endpoints are throttled with a fixed window **before any credential or database
+work**, keyed both by caller IP and (when the body carries one) by the targeted identifier
+(email / client_id, normalised + hashed) — so neither IP rotation nor one IP spraying many accounts
+evades it. Exceeding either key yields a generic `429 RATE_001`. Per-endpoint windows: login 10/min,
+MFA completion 10/min, service token 20/min, reset-request 5/min, reset 10/min, email verify 10/min,
+refresh 30/min, register 10/min. Blocks are deliberately not written to the audit table (write
+amplification would make the limiter its own DoS vector); rely on edge/infra metrics. The backing
+store is the configured cache (ElastiCache Redis in production).
 
 ## Brute-force lockout
 Consecutive failed logins increment a per-account counter; at `IDENTITY_LOCKOUT_MAX_ATTEMPTS`

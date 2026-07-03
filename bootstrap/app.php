@@ -7,6 +7,7 @@ use App\Interfaces\Http\Middleware\ApiKeyAuthenticate;
 use App\Interfaces\Http\Middleware\AuditContext;
 use App\Interfaces\Http\Middleware\AuthenticateService;
 use App\Interfaces\Http\Middleware\IdempotencyMiddleware;
+use App\Interfaces\Http\Middleware\RateLimitRequests;
 use App\Interfaces\Http\Middleware\RequirePermission;
 use App\Interfaces\Http\Problem\ErrorEnvelope;
 use Illuminate\Foundation\Application;
@@ -30,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'idempotency' => IdempotencyMiddleware::class,
             'permission' => RequirePermission::class,
             'apikey' => ApiKeyAuthenticate::class,
+            'ratelimit' => RateLimitRequests::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
